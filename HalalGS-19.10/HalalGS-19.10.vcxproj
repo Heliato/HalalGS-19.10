@@ -112,6 +112,7 @@
     <ClCompile Include="SDK\FortniteGame_functions.cpp" />
     <ClCompile Include="SDK\FortniteUI_functions.cpp" />
     <ClCompile Include="SDK\GameplayAbilities_functions.cpp" />
+    <ClCompile Include="SDK\OnlineSubsystemUtils_functions.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Functions\Abilities.h" />
@@ -122,6 +123,7 @@
     <ClInclude Include="Functions\NewInventory.h" />
     <ClInclude Include="Globals.h" />
     <ClInclude Include="Globals\BuildingActor.h" />
+    <ClInclude Include="Globals\DecoTool.h" />
     <ClInclude Include="Globals\FortAthenaSupplyDrop.h" />
     <ClInclude Include="Globals\FortKismetLibrary.h" />
     <ClInclude Include="Globals\GameMode.h" />

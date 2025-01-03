@@ -34,6 +34,9 @@
     <ClCompile Include="SDK\FortniteUI_functions.cpp">
       <Filter>SDK</Filter>
     </ClCompile>
+    <ClCompile Include="SDK\OnlineSubsystemUtils_functions.cpp">
+      <Filter>SDK</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="util.h" />
@@ -89,6 +92,9 @@
       <Filter>Headers\Functions</Filter>
     </ClInclude>
     <ClInclude Include="Globals\Pickup.h">
+      <Filter>Headers\Globals</Filter>
+    </ClInclude>
+    <ClInclude Include="Globals\DecoTool.h">
       <Filter>Headers\Globals</Filter>
     </ClInclude>
   </ItemGroup>

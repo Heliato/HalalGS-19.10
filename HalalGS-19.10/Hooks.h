@@ -11,8 +11,8 @@ enum ENetMode
 
 namespace Hooks
 {
-	void (*GetPlayerViewPointOG)(APlayerController* PlayerController, FVector& out_Location, FRotator& out_Rotation);
 	void (*ProcessEventOG)(UObject* Object, UFunction* Function, void* Parms);
+	void (*DispatchRequestOG)(__int64 a1, __int64 a2, int a3);
 
 	uintptr_t GIsClient()
 	{
@@ -29,41 +29,249 @@ namespace Hooks
 		return ENetMode::NM_DedicatedServer;
 	}
 
-	bool LocalSpawnPlayActor()
-	{
-		return true;
-	}
-
-	void KickPlayerHook()
+	void Ret()
 	{
 		return;
 	}
 
-	void GetPlayerViewPoint(APlayerController* PlayerController, FVector& out_Location, FRotator& out_Rotation)
+	bool RetFalse()
 	{
-		APawn* Pawn = PlayerController->Pawn;
-		ASpectatorPawn* SpectatorPawn = PlayerController->SpectatorPawn;
+		return false;
+	}
 
-		if (Pawn)
-		{
-			out_Location = Pawn->K2_GetActorLocation();
-			out_Rotation = PlayerController->GetControlRotation();
-			return;
-		}
-		else if (SpectatorPawn && PlayerController->HasAuthority())
-		{
-			out_Location = SpectatorPawn->K2_GetActorLocation();
-			out_Rotation = ((APlayerController*)SpectatorPawn->Owner)->GetControlRotation();
-			return;
-		}
-		else if (!SpectatorPawn && !Pawn)
-		{
-			out_Location = PlayerController->LastSpectatorSyncLocation;
-			out_Rotation = PlayerController->LastSpectatorSyncRotation;
-			return;
-		}
+	bool RetTrue()
+	{
+		return true;
+	}
 
-		GetPlayerViewPointOG(PlayerController, out_Location, out_Rotation);
+	void DispatchRequest(__int64 a1, __int64 a2, int a3)
+	{
+		DispatchRequestOG(a1, a2, 3);
+	}
+
+	void ApplyAbilities(AFortWeapon* Weapon)
+	{
+		APawn* Instigator = Weapon->Instigator;
+		if (!Instigator) return;
+
+		AFortPlayerState* PlayerState = Cast<AFortPlayerState>(Instigator->PlayerState);
+		if (!PlayerState) return;
+
+		UFortAbilitySystemComponent* AbilitySystemComponent = PlayerState->AbilitySystemComponent;
+		if (!AbilitySystemComponent) return;
+
+		if (Weapon->WeaponData)
+		{
+			if (Weapon->PrimaryAbilitySpecHandle.Handle == -1)
+			{
+				TSoftClassPtr<UClass> PrimaryFireAbility = Weapon->WeaponData->PrimaryFireAbility;
+				UClass* PrimaryFireAbilityClass = Functions::LoadClass(PrimaryFireAbility);
+
+				if (PrimaryFireAbilityClass)
+				{
+					UGameplayAbility* GameplayAbility = Cast<UGameplayAbility>(PrimaryFireAbilityClass->CreateDefaultObject());
+
+					if (GameplayAbility)
+					{
+						FGameplayAbilitySpec GameplayAbilitySpec;
+						GameplayAbilitySpec.CreateDefaultAbilitySpec(GameplayAbility, 1, -1, Weapon);
+
+						FGameplayAbilitySpecHandle Handle;
+						AbilitySystemComponent->GiveAbility(&Handle, GameplayAbilitySpec);
+
+						Weapon->PrimaryAbilitySpecHandle.Handle = Handle.Handle;
+					}
+				}
+			}
+
+			if (Weapon->SecondaryAbilitySpecHandle.Handle == -1)
+			{
+				TSoftClassPtr<UClass> SecondaryFireAbility = Weapon->WeaponData->SecondaryFireAbility;
+				UClass* SecondaryFireAbilityClass = Functions::LoadClass(SecondaryFireAbility);
+
+				if (SecondaryFireAbilityClass)
+				{
+					UGameplayAbility* GameplayAbility = Cast<UGameplayAbility>(SecondaryFireAbilityClass->CreateDefaultObject());
+
+					if (GameplayAbility)
+					{
+						FGameplayAbilitySpec GameplayAbilitySpec;
+						GameplayAbilitySpec.CreateDefaultAbilitySpec(GameplayAbility, 1, -1, Weapon);
+
+						FGameplayAbilitySpecHandle Handle;
+						AbilitySystemComponent->GiveAbility(&Handle, GameplayAbilitySpec);
+
+						Weapon->SecondaryAbilitySpecHandle.Handle = Handle.Handle;
+					}
+				}
+			}
+
+			if (Weapon->ReloadAbilitySpecHandle.Handle == -1)
+			{
+				TSoftClassPtr<UClass> ReloadAbility = Weapon->WeaponData->ReloadAbility;
+				UClass* ReloadAbilityClass = Functions::LoadClass(ReloadAbility);
+
+				if (ReloadAbilityClass)
+				{
+					UGameplayAbility* GameplayAbility = Cast<UGameplayAbility>(ReloadAbilityClass->CreateDefaultObject());
+
+					if (GameplayAbility)
+					{
+						FGameplayAbilitySpec GameplayAbilitySpec;
+						GameplayAbilitySpec.CreateDefaultAbilitySpec(GameplayAbility, 1, -1, Weapon);
+
+						FGameplayAbilitySpecHandle Handle;
+						AbilitySystemComponent->GiveAbility(&Handle, GameplayAbilitySpec);
+
+						Weapon->ReloadAbilitySpecHandle.Handle = Handle.Handle;
+					}
+				}
+			}
+			
+			if (!Weapon->EquippedAbilityHandles.Num() && !Weapon->EquippedAbilitySetHandles.Num())
+			{
+				TArray<TSoftClassPtr<UClass>> EquippedAbilities = Weapon->WeaponData->EquippedAbilities;
+
+				for (int32 i = 0; i < EquippedAbilities.Num(); i++)
+				{
+					TSoftClassPtr<UClass> EquippedAbility = EquippedAbilities[i];
+					UClass* EquippedAbilityClass = Functions::LoadClass(EquippedAbility);
+
+					if (!EquippedAbilityClass)
+						continue;
+
+					UGameplayAbility* GameplayAbility = Cast<UGameplayAbility>(EquippedAbilityClass->CreateDefaultObject());
+
+					if (GameplayAbility)
+					{
+						FGameplayAbilitySpec GameplayAbilitySpec;
+						GameplayAbilitySpec.CreateDefaultAbilitySpec(GameplayAbility, 1, -1, Weapon);
+
+						FGameplayAbilitySpecHandle Handle;
+						AbilitySystemComponent->GiveAbility(&Handle, GameplayAbilitySpec);
+
+						Weapon->EquippedAbilityHandles.Add(Handle);
+					}
+				}
+
+				FN_LOG(LogHooks, Log, "Weapon->AppliedAlterations.Num(): %i", Weapon->AppliedAlterations.Num());
+
+				if (Weapon->AppliedAlterations.Num() > 0)
+				{
+					for (int32 i = 0; i < Weapon->AppliedAlterations.Num(); i++)
+					{
+						UFortAlterationItemDefinition* AlterationItemDefinition = Weapon->AppliedAlterations[i];
+						if (!AlterationItemDefinition) continue;
+
+						TSoftObjectPtr<UFortAbilitySet> AlterationAbilitySet = AlterationItemDefinition->AlterationAbilitySet;
+						UFortAbilitySet* AbilitySet = AlterationAbilitySet.Get();
+
+						if (!AbilitySet && AlterationAbilitySet.ObjectID.AssetPathName.IsValid())
+						{
+							const FString& AssetPathName = UKismetStringLibrary::Conv_NameToString(AlterationAbilitySet.ObjectID.AssetPathName);
+							AbilitySet = StaticLoadObject<UFortAbilitySet>(AssetPathName.CStr());
+						}
+
+						if (!AbilitySet)
+							continue;
+
+						FN_LOG(LogHooks, Log, "%i - AbilitySet: %s", i, AbilitySet->GetFullName().c_str());
+
+						for (int32 j = 0; j < AbilitySet->GameplayAbilities.Num(); j++)
+						{
+							TSubclassOf<UFortGameplayAbility> GameplayAbility = AbilitySet->GameplayAbilities[j];
+							UClass* GameplayAbilityClass = GameplayAbility.Get();
+
+							if (!GameplayAbilityClass)
+								continue;
+
+							FN_LOG(LogHooks, Log, "%i - GameplayAbilityClass: %s", j, GameplayAbilityClass->GetFullName().c_str());
+
+							UGameplayAbility* DefaultGameplayAbility = Cast<UGameplayAbility>(GameplayAbilityClass->CreateDefaultObject());
+
+							/*if (DefaultGameplayAbility)
+							{
+								FGameplayAbilitySpec GameplayAbilitySpec;
+								GameplayAbilitySpec.CreateDefaultAbilitySpec(DefaultGameplayAbility, 1, -1, Weapon);
+
+								FGameplayAbilitySpecHandle Handle;
+								AbilitySystemComponent->GiveAbility(&Handle, GameplayAbilitySpec);
+
+								Weapon->EquippedAbilitySetHandles.Add(Handle);
+							}*/
+						}
+					}
+				}
+			}
+
+			/*
+				TSoftClassPtr<class UClass>                   OnHitAbility;                                      // 0x0A30(0x0028)(Edit, Protected, UObjectWrapper, HasGetValueTypeHash, NativeAccessSpecifierProtected)
+				TArray<TSoftClassPtr<class UClass>>           EquippedAbilities;                                 // 0x0A58(0x0010)(Edit, ZeroConstructor, Protected, UObjectWrapper, NativeAccessSpecifierProtected)
+				TSoftObjectPtr<class UFortAbilitySet>         EquippedAbilitySet;
+			*/
+		}
+	}
+
+	void RemoveAbilities(AFortWeapon* Weapon)
+	{
+		APawn* Instigator = Weapon->Instigator;
+		if (!Instigator) return;
+
+		AFortPlayerState* PlayerState = Cast<AFortPlayerState>(Instigator->PlayerState);
+		if (!PlayerState) return;
+
+		UFortAbilitySystemComponent* AbilitySystemComponent = PlayerState->AbilitySystemComponent;
+		if (!AbilitySystemComponent) return;
+
+		if (Weapon->WeaponData)
+		{
+			if (Weapon->PrimaryAbilitySpecHandle.Handle != -1)
+			{
+				AbilitySystemComponent->ClearAbility(Weapon->PrimaryAbilitySpecHandle);
+				Weapon->PrimaryAbilitySpecHandle.Handle = -1;
+			}
+
+			if (Weapon->SecondaryAbilitySpecHandle.Handle != -1)
+			{
+				AbilitySystemComponent->ClearAbility(Weapon->SecondaryAbilitySpecHandle);
+				Weapon->SecondaryAbilitySpecHandle.Handle = -1;
+			}
+
+			if (Weapon->ReloadAbilitySpecHandle.Handle != -1)
+			{
+				AbilitySystemComponent->ClearAbility(Weapon->ReloadAbilitySpecHandle);
+				Weapon->ReloadAbilitySpecHandle.Handle = -1;
+			}
+
+			/*if (Weapon->ImpactAbilitySpecHandle.Handle != -1)
+			{
+				AbilitySystemComponent->ClearAbility(Weapon->ImpactAbilitySpecHandle);
+				Weapon->ImpactAbilitySpecHandle.Handle = -1;
+			}
+
+			if (Weapon->ReticleTraceOverrideSpecHandle.Handle != -1)
+			{
+				AbilitySystemComponent->ClearAbility(Weapon->ReticleTraceOverrideSpecHandle);
+				Weapon->ReticleTraceOverrideSpecHandle.Handle = -1;
+			}*/
+
+			for (int32 i = 0; i < Weapon->EquippedAbilityHandles.Num(); i++)
+			{
+				FGameplayAbilitySpecHandle& EquippedAbilityHandle = Weapon->EquippedAbilityHandles[i];
+				AbilitySystemComponent->ClearAbility(EquippedAbilityHandle);
+				EquippedAbilityHandle.Handle = -1;
+			}
+
+			Weapon->EquippedAbilityHandles.Free();
+
+			for (int32 i = 0; i < Weapon->EquippedAbilitySetHandles.Num(); i++)
+			{
+				FFortAbilitySetHandle& EquippedAbilitySetHandle = Weapon->EquippedAbilitySetHandles[i];
+				UFortKismetLibrary::UnequipFortAbilitySet(EquippedAbilitySetHandle);
+			}
+
+			Weapon->EquippedAbilitySetHandles.Free();
+		}
 	}
 
 	bool bLogs = false;
@@ -108,18 +316,145 @@ namespace Hooks
 			{
 				AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
 
-				if (!PlayerController)
+				if (!PlayerController || !PlayerController->Pawn)
 					return;
+
+				auto WoodItemData = StaticFindObject<UFortResourceItemDefinition>(L"/Game/Items/ResourcePickups/WoodItemData.WoodItemData");
+
+				FFortItemEntry ItemEntry;
+				ItemEntry.CreateDefaultItemEntry(WoodItemData, 30, 0);
+
+				TWeakObjectPtr<AFortPlayerController> WeakPlayerController{};
+				WeakPlayerController.ObjectIndex = -1;
+				WeakPlayerController.ObjectSerialNumber = 0;
+
+				TWeakObjectPtr<AActor> WeakInvestigator{};
+				WeakInvestigator.ObjectIndex = -1;
+				WeakInvestigator.ObjectSerialNumber = 0;
+
+				FFortCreatePickupData PickupData = FFortCreatePickupData();
+				PickupData.World = Globals::GetWorld();
+				PickupData.ItemEntry = ItemEntry;
+				PickupData.SpawnLocation = PlayerController->Pawn->K2_GetActorLocation();
+				PickupData.SpawnRotation = FRotator();
+				PickupData.WeakPlayerController = WeakPlayerController;
+				PickupData.OverrideClass = nullptr;
+				PickupData.WeakInvestigator = WeakInvestigator;
+				PickupData.PickupSourceTypeFlags = EFortPickupSourceTypeFlag::Other;
+				PickupData.PickupSpawnSource = EFortPickupSpawnSource::Unset;
+				PickupData.bRandomRotation = 1;
+				PickupData.BitPad_1DA_1 = 0;
+
+				FFortCreatePickupData* (*CreatePickupData)(
+					FFortCreatePickupData* PickupData,
+					UWorld* World,
+					FFortItemEntry ItemEntry,
+					FVector SpawnLocation,
+					FRotator SpawnRotation,
+					AFortPlayerController* PlayerController,
+					UClass* OverrideClass,
+					AActor* Investigator,
+					int a9,
+					int a10) = decltype(CreatePickupData)(0x64da9dc + uintptr_t(GetModuleHandle(0)));
+
+				CreatePickupData(
+					&PickupData,
+					Globals::GetWorld(),
+					ItemEntry,
+					PlayerController->Pawn->K2_GetActorLocation(),
+					FRotator(),
+					nullptr,
+					nullptr,
+					nullptr,
+					0,
+					0);
+
+				AFortPickup* (*CreatePickupFromData)(FFortCreatePickupData* PickupData) = decltype(CreatePickupFromData)(0x64dd1b4 + uintptr_t(GetModuleHandle(0)));
+				AFortPickup* Pickup = CreatePickupFromData(&PickupData);
+
+				Pickup->TossPickup(
+					PlayerController->Pawn->K2_GetActorLocation(),
+					nullptr,
+					0,
+					true,
+					true,
+					EFortPickupSourceTypeFlag::Tossed,
+					EFortPickupSpawnSource::TossedByPlayer
+				);
 			}
 
 			if (GetAsyncKeyState(VK_F5) & 0x1)
 			{
 				AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
 
-				if (!PlayerController)
+				if (!PlayerController || !PlayerController->Pawn)
 					return;
 
-				PlayerController->GetWorld()->SpawnActor(AFortAIDirector::StaticClass());
+				//auto TID_ContextTrap_Athena = StaticFindObject<UFortContextTrapItemDefinition>(L"/Game/Athena/Items/Traps/TID_ContextTrap_Athena.TID_ContextTrap_Athena");
+				auto TID_ContextTrap_Athena = StaticFindObject<UFortWeaponRangedItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Hook_Gun_VR_Ore_T03.WID_Hook_Gun_VR_Ore_T03");
+				// FortniteGame/Content.uasset
+
+				FFortItemEntry ItemEntry;
+				ItemEntry.CreateDefaultItemEntry(TID_ContextTrap_Athena, 1, 0);
+				ItemEntry.LoadedAmmo = 10;
+
+				TWeakObjectPtr<AFortPlayerController> WeakPlayerController{};
+				WeakPlayerController.ObjectIndex = -1;
+				WeakPlayerController.ObjectSerialNumber = 0;
+
+				TWeakObjectPtr<AActor> WeakInvestigator{};
+				WeakInvestigator.ObjectIndex = -1;
+				WeakInvestigator.ObjectSerialNumber = 0;
+
+				FFortCreatePickupData PickupData = FFortCreatePickupData();
+				PickupData.World = Globals::GetWorld();
+				PickupData.ItemEntry = ItemEntry;
+				PickupData.SpawnLocation = PlayerController->Pawn->K2_GetActorLocation();
+				PickupData.SpawnRotation = FRotator();
+				PickupData.WeakPlayerController = WeakPlayerController;
+				PickupData.OverrideClass = nullptr;
+				PickupData.WeakInvestigator = WeakInvestigator;
+				PickupData.PickupSourceTypeFlags = EFortPickupSourceTypeFlag::Other;
+				PickupData.PickupSpawnSource = EFortPickupSpawnSource::Unset;
+				PickupData.bRandomRotation = 1;
+				PickupData.BitPad_1DA_1 = 0;
+
+				FFortCreatePickupData* (*CreatePickupData)(
+					FFortCreatePickupData* PickupData,
+					UWorld* World,
+					FFortItemEntry ItemEntry,
+					FVector SpawnLocation,
+					FRotator SpawnRotation,
+					AFortPlayerController* PlayerController,
+					UClass* OverrideClass,
+					AActor* Investigator,
+					int a9,
+					int a10) = decltype(CreatePickupData)(0x64da9dc + uintptr_t(GetModuleHandle(0)));
+
+				CreatePickupData(
+					&PickupData,
+					Globals::GetWorld(),
+					ItemEntry,
+					PlayerController->Pawn->K2_GetActorLocation(),
+					FRotator(),
+					nullptr,
+					nullptr,
+					nullptr,
+					0,
+					0);
+
+				AFortPickup* (*CreatePickupFromData)(FFortCreatePickupData* PickupData) = decltype(CreatePickupFromData)(0x64dd1b4 + uintptr_t(GetModuleHandle(0)));
+				AFortPickup* Pickup = CreatePickupFromData(&PickupData);
+
+				Pickup->TossPickup(
+					PlayerController->Pawn->K2_GetActorLocation(),
+					nullptr,
+					0,
+					true,
+					true,
+					EFortPickupSourceTypeFlag::Other,
+					EFortPickupSpawnSource::Unset
+				);
 			}
 
 			if (GetAsyncKeyState(VK_F6) & 0x1)
@@ -128,30 +463,136 @@ namespace Hooks
 
 				if (!PlayerController)
 					return;
+
+				AFortPlayerStateAthena* PlayerStateAthena = Cast<AFortPlayerStateAthena>(PlayerController->PlayerState);
+
+				if (!PlayerStateAthena)
+					return;
+
+				UFortAbilitySystemComponent* AbilitySystemComponent = PlayerStateAthena->AbilitySystemComponent;
+
+				if (!AbilitySystemComponent)
+					return;
+
+				for (int32 i = 0; i < AbilitySystemComponent->ActiveGameplayEffects.GameplayEffects_Internal.Num(); i++)
+				{
+					FActiveGameplayEffect ActiveGameplayEffect = AbilitySystemComponent->ActiveGameplayEffects.GameplayEffects_Internal[i];
+					if (!ActiveGameplayEffect.Spec.Def) continue;
+
+					FN_LOG(LogHooks, Log, "%i - ActiveGameplayEffect.Spec.Def: %s", i, ActiveGameplayEffect.Spec.Def->GetFullName().c_str());
+				}
+
+				for (int32 i = 0; i < AbilitySystemComponent->ActivatableAbilities.Items.Num(); i++)
+				{
+					FGameplayAbilitySpec ActivatableAbility = AbilitySystemComponent->ActivatableAbilities.Items[i];
+					if (!ActivatableAbility.Ability) continue;
+
+					FN_LOG(LogHooks, Log, "%i - ActivatableAbility.Ability: %s", i, ActivatableAbility.Ability->GetFullName().c_str());
+				}
 			}
 
 			if (GetAsyncKeyState(VK_F7) & 0x1)
 			{
-				AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
+				bLogs = bLogs ? false : true;
+				FN_LOG(LogHooks, Log, "bLogs set to %i", bLogs);
 
-				if (!PlayerController)
+				/*AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
+
+				if (!PlayerController || !PlayerController->Pawn)
 					return;
+
+				UBlueprintGeneratedClass* FloorLootClass = StaticFindObject<UBlueprintGeneratedClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_01.Tiered_Athena_FloorLoot_01_C");
+				UBlueprintGeneratedClass* FloorLootWarmupClass = StaticFindObject<UBlueprintGeneratedClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_Warmup.Tiered_Athena_FloorLoot_Warmup_C");
+
+				if (FloorLootClass && FloorLootWarmupClass)
+				{
+					TArray<AActor*> FloorLootsResult;
+					UGameplayStatics::GetAllActorsOfClass(PlayerController, FloorLootClass, &FloorLootsResult);
+
+					TArray<AActor*> FloorLootWarmupResult;
+					UGameplayStatics::GetAllActorsOfClass(PlayerController, FloorLootWarmupClass, &FloorLootWarmupResult);
+
+					TArray<AActor*> FloorLoots;
+
+					for (int i = 0; i < FloorLootsResult.Num(); i++)
+					{
+						FloorLoots.Add(FloorLootsResult[i]);
+					}
+
+					for (int i = 0; i < FloorLootWarmupResult.Num(); i++)
+					{
+						FloorLoots.Add(FloorLootWarmupResult[i]);
+					}
+
+					for (int i = 0; i < FloorLoots.Num(); i++)
+					{
+						ABuildingContainer* FloorLoot = (ABuildingContainer*)FloorLoots[i];
+						if (!FloorLoot) continue;
+
+						int32 WorldLevel = UFortKismetLibrary::GetLootLevel(PlayerController);
+
+						FName LootTierKey = FName(0);
+						int32 LootTier = -1;
+						bool bResult = Loots::PickLootTierKeyAndLootTierFromTierGroup(&LootTierKey, &LootTier, FloorLoot->SearchLootTierGroup, WorldLevel, 0, -1, FloorLoot->StaticGameplayTags);
+
+						if (bResult)
+						{
+							TArray<FFortItemEntry> LootToDrops;
+							Loots::PickLootDrops(&LootToDrops, WorldLevel, LootTierKey, 0, 0, FloorLoot->StaticGameplayTags, false, false);
+
+							for (int32 i = 0; i < LootToDrops.Num(); i++)
+							{
+								FFortItemEntry LootToDrop = LootToDrops[i];
+
+								FFortItemEntry ItemEntry;
+								Inventory::MakeItemEntry(&ItemEntry, LootToDrop.ItemDefinition, LootToDrop.Count, LootToDrop.Level, LootToDrop.LoadedAmmo, LootToDrop.Durability);
+
+								Inventory::SpawnPickup(nullptr, ItemEntry, PlayerController->Pawn->K2_GetActorLocation(), PlayerController->Pawn->K2_GetActorLocation());
+							}
+						}
+
+						FloorLoot->bAlreadySearched = true;
+						FloorLoot->OnRep_bAlreadySearched();
+					}
+				}*/
 			}
 
 			if (GetAsyncKeyState(VK_F9) & 0x1)
 			{
 				AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
 
-				if (!PlayerController)
+				if (!PlayerController || !PlayerController->Pawn)
 					return;
+
+				FName TierGroupName = UKismetStringLibrary::Conv_StringToName(L"Loot_AthenaTreasure");
+				int32 WorldLevel = UFortKismetLibrary::GetLootLevel(PlayerController);
+
+				int32 LootTier = -1;
+				FName LootTierKey = FName(0);
+				bool bResult = Loots::PickLootTierKeyAndLootTierFromTierGroup(&LootTierKey, &LootTier, TierGroupName, WorldLevel, 0, -1, FGameplayTagContainer());
+
+				FN_LOG(LogHooks, Log, "bResult: %i, TierGroupName: %s, LootTierKey: %s, LootTier: %i, ", bResult, TierGroupName.ToString().c_str(), LootTierKey.ToString().c_str(), LootTier);
 			}
 
 			if (GetAsyncKeyState(VK_F10) & 0x1)
 			{
-				AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
+				UGameDataBR* GameDataBR = Globals::GetGameDataBR();
 
-				if (!PlayerController)
-					return;
+				for (int32 i = 0; i < GameDataBR->LootTierDataTablesBR.Num(); i++)
+				{
+					TSoftObjectPtr<UDataTable> LootTierDataTable = GameDataBR->LootTierDataTablesBR[i];
+					UDataTable* DataTable = Loots::LoadDataTable(LootTierDataTable);
+
+					FN_LOG(LogHooks, Log, "%i - LootTierDataTables: %s", i, DataTable->GetFullName().c_str());
+				}
+
+				for (int32 i = 0; i < GameDataBR->LootPackageDataTablesBR.Num(); i++)
+				{
+					TSoftObjectPtr<UDataTable> LootPackageDataTable = GameDataBR->LootPackageDataTablesBR[i];
+					UDataTable* DataTable = Loots::LoadDataTable(LootPackageDataTable);
+
+					FN_LOG(LogHooks, Log, "%i - LootPackageDataTable: %s", i, DataTable->GetFullName().c_str());
+				}
 			}
 		}
 		else if (FunctionName.contains("OnWorldReady"))
@@ -221,10 +662,26 @@ namespace Hooks
 					GameStateAthena->OnRep_AdditionalPlaylistLevelsStreamed();
 				}
 
+				Functions::FillSafeZoneDurations();
+
 				FN_LOG(LogHooks, Log, "OnWorldReady called!");
 				GameModeAthena->bWorldIsReady = true;
 			}
 		}
+
+		/*if (FunctionName.contains("OnEquip"))
+		{
+			FN_LOG(Logs, Log, "Object: %s", Object->GetFullName().c_str());
+			FN_LOG(Logs, Log, "OnEquip: %s", Function->GetFullName().c_str());
+		}
+
+		if (FunctionName.contains("OnUnEquip"))
+		{
+			UFortWeaponComponent;
+
+			FN_LOG(Logs, Log, "Object: %s", Object->GetFullName().c_str());
+			FN_LOG(Logs, Log, "OnUnEquip: %s", Function->GetFullName().c_str());
+		}*/
 
 		if (bLogs)
 		{
@@ -282,7 +739,6 @@ namespace Hooks
 				!FunctionName.contains("OnLanded") &&
 				!FunctionName.contains("ReceiveHit") &&
 				!FunctionName.contains("OnWalkingOffLedge") &&
-				!FunctionName.contains("ServerEndAbility") &&
 				!FunctionName.contains("Execute") &&
 				!FunctionName.contains("OnDamagePlayEffects") &&
 				!FunctionName.contains("OnMontageStarted") &&
@@ -463,9 +919,9 @@ namespace Hooks
 				!FunctionName.contains("WaitForPawn") &&
 				!FunctionName.contains("OnProjectileStopDelegate") &&
 				!FunctionName.contains("Handle Parachute Audio State") &&
-				!FunctionName.contains("OnHitCrack") &&
-				!FunctionName.contains("OnHitCrack") &&
-				!FunctionName.contains("OnHitCrack") &&
+				!FunctionName.contains("IsCachedIsProjectileWeapon") &&
+				!FunctionName.contains("ClientMoveResponsePacked") &&
+				!FunctionName.contains("GetAbilityTargetingLevel") &&
 				!FunctionName.contains("OnHitCrack") &&
 				!FunctionName.contains("OnHitCrack") &&
 				!FunctionName.contains("OnHitCrack") &&
@@ -477,28 +933,85 @@ namespace Hooks
 				!FunctionName.contains("OnHitCrack") &&
 				!FunctionName.contains("EvaluateGraphExposedInputs_ExecuteUbergraph_Fortnite_M_Avg_Player_AnimBlueprint_AnimGraphNode_"))
 			{
-				FN_LOG(Logs, Log, "FunctionName: [%s]", FunctionName.c_str());
+				FN_LOG(Logs, Log, "Function: [%s]", Function->GetFullName().c_str());
 			}
 		}
 
 		ProcessEventOG(Object, Function, Parms);
 	}
 
+	struct FortWeaponComponent_EquipTest final
+	{
+	public:
+		class AFortWeapon* Weapon;                                            // 0x0000(0x0008)(Parm, ZeroConstructor, IsPlainOldData, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPublic)
+	};
+
+	void (*OnEquipOG)(UFortWeaponComponent* WeaponComponent, FFrame& Stack, void* Ret);
+	void OnEquip(UFortWeaponComponent* WeaponComponent, FFrame& Stack, void* Ret)
+	{
+		auto Params = (FortWeaponComponent_EquipTest*)Stack.Locals;
+
+		FN_LOG(Logs, Log, "OnEquip - Params->Weapon: %s", Params->Weapon->GetName().c_str());
+
+		ApplyAbilities(Params->Weapon);
+
+		OnEquipOG(WeaponComponent, Stack, Ret);
+	}
+
+	void (*OnUnEquipOG)(UFortWeaponComponent* WeaponComponent, FFrame& Stack, void* Ret);
+	void OnUnEquip(UFortWeaponComponent* WeaponComponent, FFrame& Stack, void* Ret)
+	{
+		auto Params = (FortWeaponComponent_EquipTest*)Stack.Locals;
+
+		FN_LOG(Logs, Log, "OnUnEquip - Params->Weapon: %s", Params->Weapon->GetName().c_str());
+
+		RemoveAbilities(Params->Weapon);
+
+		OnUnEquipOG(WeaponComponent, Stack, Ret);
+	}
+
 	void InitHook()
 	{
+		uintptr_t AddressChangingGameSessionId = MinHook::FindPattern(Patterns::ChangingGameSessionId);
 		uintptr_t AddressInternalGetNetMode = MinHook::FindPattern(Patterns::InternalGetNetMode);
 		uintptr_t AddressActorInternalGetNetMode = MinHook::FindPattern(Patterns::ActorInternalGetNetMode);
 		uintptr_t AddressLocalSpawnPlayActor = MinHook::FindPattern(Patterns::LocalSpawnPlayActor);
+		uintptr_t AddressKickPlayer = MinHook::FindPattern(Patterns::KickPlayer);
+		uintptr_t AddressDispatchRequest = MinHook::FindPattern(Patterns::DispatchRequest);
 
+		MH_CreateHook((LPVOID)(AddressChangingGameSessionId), Ret, nullptr);
+		MH_EnableHook((LPVOID)(AddressChangingGameSessionId));
 		MH_CreateHook((LPVOID)(AddressInternalGetNetMode), ReturnNetMode, nullptr);
 		MH_EnableHook((LPVOID)(AddressInternalGetNetMode));
 		MH_CreateHook((LPVOID)(AddressActorInternalGetNetMode), ReturnNetMode, nullptr);
 		MH_EnableHook((LPVOID)(AddressActorInternalGetNetMode));
-		MH_CreateHook((LPVOID)(AddressLocalSpawnPlayActor), LocalSpawnPlayActor, nullptr);
+		MH_CreateHook((LPVOID)(AddressLocalSpawnPlayActor), RetTrue, nullptr);
 		MH_EnableHook((LPVOID)(AddressLocalSpawnPlayActor));
+		MH_CreateHook((LPVOID)(AddressKickPlayer), Ret, nullptr);
+		MH_EnableHook((LPVOID)(AddressKickPlayer));
+		MH_CreateHook((LPVOID)(AddressDispatchRequest), DispatchRequest, (LPVOID*)(&DispatchRequestOG));
+		MH_EnableHook((LPVOID)(AddressDispatchRequest));
+
+		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x11BE904), RetFalse, nullptr);
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x11BE904));
+		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x1F901AC), Ret, nullptr);
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x1F901AC));
+		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x44A9B00), RetFalse, nullptr);
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x44A9B00));
+		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x4dd8528), RetTrue, nullptr);
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x4dd8528));
+		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0xd6bae4), Ret, nullptr);
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0xd6bae4));
 
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + Offsets::ProcessEvent), ProcessEvent, (LPVOID*)(&ProcessEventOG));
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + Offsets::ProcessEvent));
+
+		UClass* FortWeaponComponentClass = UFortWeaponComponent::StaticClass();
+
+		UFunction* OnEquipFunc = FortWeaponComponentClass->GetFunction("FortWeaponComponent", "OnEquip");
+		MinHook::HookFunctionExec(OnEquipFunc, OnEquip, (LPVOID*)(&OnEquipOG));
+		UFunction* OnUnEquipFunc = FortWeaponComponentClass->GetFunction("FortWeaponComponent", "OnUnEquip");
+		MinHook::HookFunctionExec(OnUnEquipFunc, OnUnEquip, (LPVOID*)(&OnUnEquipOG));
 
 		FN_LOG(LogInit, Log, "InitHook Success!");
 	}

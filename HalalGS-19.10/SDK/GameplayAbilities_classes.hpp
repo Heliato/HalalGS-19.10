@@ -259,6 +259,30 @@ public:
 	struct FGameplayEffectContextHandle MakeEffectContext() const;
 	struct FGameplayEffectSpecHandle MakeOutgoingSpec(TSubclassOf<class UGameplayEffect> GameplayEffectClass, float Level, const struct FGameplayEffectContextHandle& Context) const;
 
+	void ClearAllAbilities()
+	{
+		void (*ClearAllAbilities)(class UAbilitySystemComponent* AbilitySystemComponent) = decltype(ClearAllAbilities)(0x1210564 + uintptr_t(GetModuleHandle(0)));
+		ClearAllAbilities(this);
+	}
+
+	struct FGameplayAbilitySpecHandle GiveAbility(struct FGameplayAbilitySpecHandle* Handle, struct FGameplayAbilitySpec Spec)
+	{
+		struct FGameplayAbilitySpecHandle (*GiveAbility)(class UAbilitySystemComponent* AbilitySystemComponent, struct FGameplayAbilitySpecHandle* Handle, struct FGameplayAbilitySpec Spec) = decltype(GiveAbility)(0x1210B88 + uintptr_t(GetModuleHandle(0)));
+		return GiveAbility(this, Handle, Spec);
+	}
+
+	void ClearAbility(const struct FGameplayAbilitySpecHandle& Handle)
+	{
+		void (*ClearAbility)(class UAbilitySystemComponent* AbilitySystemComponent, const struct FGameplayAbilitySpecHandle& Handle) = decltype(ClearAbility)(0x4dfd34c + uintptr_t(GetModuleHandle(0)));
+		ClearAbility(this, Handle);
+	}
+
+	bool InternalTryActivateAbility(struct FGameplayAbilitySpecHandle Handle, struct FPredictionKey InPredictionKey, class UGameplayAbility** OutInstancedAbility, void* OnGameplayAbilityEndedDelegate, const struct FGameplayEventData* TriggerEventData)
+	{
+		bool (*InternalTryActivateAbility)(class UAbilitySystemComponent* AbilitySystemComponent, struct FGameplayAbilitySpecHandle Handle, struct FPredictionKey InPredictionKey, class UGameplayAbility** OutInstancedAbility, void* OnGameplayAbilityEndedDelegate, const struct FGameplayEventData* TriggerEventData) = decltype(InternalTryActivateAbility)(0x4E02108 + uintptr_t(GetModuleHandle(0)));
+		return InternalTryActivateAbility(this, Handle, InPredictionKey, OutInstancedAbility, OnGameplayAbilityEndedDelegate, TriggerEventData);
+	}
+
 public:
 	static class UClass* StaticClass()
 	{

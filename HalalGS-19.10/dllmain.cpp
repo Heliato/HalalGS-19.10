@@ -34,6 +34,7 @@
 #include "Globals/FortAthenaSupplyDrop.h"
 #include "Globals/BuildingActor.h"
 #include "Globals/Pickup.h"
+#include "Globals/DecoTool.h"
 
 #include "Functions/Cheats.h"
 
@@ -67,8 +68,8 @@ DWORD WINAPI MainThread(LPVOID)
             Hooks::InitHook();
         }
 
-        /**(bool*)Hooks::GIsClient() = false;
-        *(bool*)Hooks::GIsServer() = true;*/
+        *(bool*)Hooks::GIsClient() = false;
+        *(bool*)Hooks::GIsServer() = true;
 
         FN_LOG(LogInitialize, Log, "ImageBase: [%p]", InSDKUtils::GetImageBase());
         FN_LOG(LogInitialize, Log, "Init Success!");

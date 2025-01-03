@@ -1,5 +1,7 @@
 #pragma once
 
+// InventoryOwner = 0x710
+
 #define CHEATS
 // #define DEBUGS
 // #define SIPHON
@@ -17,13 +19,6 @@ static T* Cast(UObject* Object)
 
 	return nullptr;
 }
-
-struct FFortCreatePickupData final
-{
-public:
-	UWorld*										  World;					                         // 0x0000(0x0008)()
-	
-};
 
 namespace Globals
 {
@@ -131,6 +126,21 @@ namespace Globals
 
 			if (GameDataBR)
 				return GameDataBR;
+		}
+
+		return nullptr;
+	}
+
+	UGameDataCosmetics* GetGameDataCosmetics()
+	{
+		UFortAssetManager* AssetManager = Cast<UFortAssetManager>(GetFortEngine()->AssetManager);
+
+		if (AssetManager)
+		{
+			UGameDataCosmetics* GameDataCosmetics = AssetManager->GameDataCosmetics;
+
+			if (GameDataCosmetics)
+				return GameDataCosmetics;
 		}
 
 		return nullptr;

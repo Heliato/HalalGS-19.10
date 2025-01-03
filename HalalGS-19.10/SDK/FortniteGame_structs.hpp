@@ -18311,6 +18311,103 @@ public:
 	uint8                                         Pad_148[0x50];                                     // 0x0148(0x0050)(Fixing Size After Last Property [ Dumper-7 ])
 	int32                                         PickupVariantIndex;                                // 0x0198(0x0004)(ZeroConstructor, Transient, IsPlainOldData, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPrivate)
 	int32                                         ItemVariantDataMappingIndex;                       // 0x019C(0x0004)(ZeroConstructor, Transient, IsPlainOldData, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPrivate)
+
+	// Check if ParentInventory is Valid and Update ItemEntry
+	void UpdateItemEntry()
+	{
+		void (*UpdateItemEntry)(struct FFortItemEntry* ItemEntry) = decltype(UpdateItemEntry)(0x64e78c8 + uintptr_t(GetModuleHandle(0)));
+		UpdateItemEntry(this);
+	}
+
+	void SetCount(int32 NewCount)
+	{
+		if (NewCount < 0)
+			NewCount = 0;
+
+		if (NewCount != Count)
+		{
+			Count = NewCount;
+			UpdateItemEntry();
+		}
+	}
+
+	void SetDurability(float NewDurability)
+	{
+		if (NewDurability != Durability)
+		{
+			Durability = NewDurability;
+			UpdateItemEntry();
+		}
+	}
+
+	void SetLevel(int32 NewLevel)
+	{
+		if (NewLevel != Level && NewLevel >= 0)
+		{
+			Level = NewLevel;
+			UpdateItemEntry();
+		}
+	}
+
+	void SetLoadedAmmo(int32 NewLoadedAmmo)
+	{
+		if (NewLoadedAmmo < 0)
+			NewLoadedAmmo = 0;
+
+		if (NewLoadedAmmo != LoadedAmmo)
+		{
+			LoadedAmmo = NewLoadedAmmo;
+			UpdateItemEntry();
+		}
+	}
+
+	struct FFortItemEntry* CreateItemEntry()
+	{
+		struct FFortItemEntry* (*CreateItemEntry)(struct FFortItemEntry* ItemEntry) = decltype(CreateItemEntry)(0x12812d0 + uintptr_t(GetModuleHandle(0)));
+		return CreateItemEntry(this);
+	}
+
+	struct FFortItemEntry* CreateDefaultItemEntry(class UFortItemDefinition* ItemDefinition, int32 Count, int32 Level, FGuid ItemVariantGuid = FGuid())
+	{
+		struct FFortItemEntry* (*CreateDefaultItemEntry)(struct FFortItemEntry* ItemEntry, class UFortItemDefinition* ItemDefinition, int32 Count, int32 Level, FGuid ItemVariantGuid) = decltype(CreateDefaultItemEntry)(0x15319c0 + uintptr_t(GetModuleHandle(0)));
+		return CreateDefaultItemEntry(this, ItemDefinition, Count, Level, ItemVariantGuid);
+	}
+
+	struct FFortItemEntry* CopyItemEntry(struct FFortItemEntry* ItemEntry)
+	{
+		struct FFortItemEntry* (*CopyItemEntry)(struct FFortItemEntry* PrimaryItemEntry, struct FFortItemEntry* ItemEntry) = decltype(CopyItemEntry)(0x1128bcc + uintptr_t(GetModuleHandle(0)));
+		return CopyItemEntry(this, ItemEntry);
+	}
+
+	struct FFortItemEntry* CopyItemEntryWithReset(struct FFortItemEntry* ItemEntry)
+	{
+		struct FFortItemEntry* (*CopyItemEntryWithReset)(struct FFortItemEntry* PrimaryItemEntry, struct FFortItemEntry* ItemEntry) = decltype(CopyItemEntryWithReset)(0x2125b58 + uintptr_t(GetModuleHandle(0)));
+		return CopyItemEntryWithReset(this, ItemEntry);
+	}
+
+	void SetParentInventory(class AFortInventory* Inventory, bool bIsReplicatedCopy = true)
+	{
+		void (*SetParentInventory)(struct FFortItemEntry* ItemEntry, class AFortInventory* Inventory, bool bIsReplicatedCopy) = decltype(SetParentInventory)(0x64e7078 + uintptr_t(GetModuleHandle(0)));
+		SetParentInventory(this, Inventory, bIsReplicatedCopy);
+	}
+
+	void SetStateValue(const EFortItemEntryState& StateType, int32 IntValue)
+	{
+		void (*SetStateValue)(struct FFortItemEntry* ItemEntry, const EFortItemEntryState& StateType, int32 IntValue) = decltype(SetStateValue)(0x625cfbc + uintptr_t(GetModuleHandle(0)));
+		SetStateValue(this, StateType, IntValue);
+	}
+
+	void FreeItemEntry()
+	{
+		void (*FreeItemEntry)(struct FFortItemEntry* ItemEntry) = decltype(FreeItemEntry)(0x1281584 + uintptr_t(GetModuleHandle(0)));
+		FreeItemEntry(this);
+	}
+
+	static void FreeItemEntries(TArray<struct FFortItemEntry>* ItemEntries)
+	{
+		void (*FreeItemEntries)(TArray<struct FFortItemEntry>* ItemEntries) = decltype(FreeItemEntries)(0x1647DB4 + uintptr_t(GetModuleHandle(0)));
+		FreeItemEntries(ItemEntries);
+	}
 };
 
 // ScriptStruct FortniteGame.GliderTrailParticleDefinition

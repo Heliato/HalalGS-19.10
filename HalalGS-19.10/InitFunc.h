@@ -18,6 +18,7 @@ namespace InitFunc
 		FortKismetLibrary::InitFortKismetLibrary();
 		FortAthenaSupplyDrop::InitFortAthenaSupplyDrop();
 		Pickup::InitPickup();
+		DecoTool::InitDecoTool();
 
 		// Functions
 		Beacon::InitBeacon();

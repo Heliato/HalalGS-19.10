@@ -65,20 +65,97 @@ enum ELoadFlags
 };
 
 template <typename T>
-static T* StaticFindObject(UClass* Class, UObject* InOuter, const TCHAR* Name, bool ExactClass = false)
+static T* StaticFindObject(const TCHAR* Name, bool ExactClass = false)
 {
     // 7FF697199B40
     UObject* (*StaticFindObject)(UClass* Class, UObject* InOuter, const TCHAR* Name, bool ExactClass) = decltype(StaticFindObject)(0xBC9B40 + uintptr_t(GetModuleHandle(0)));
-    return (T*)StaticFindObject(T::StaticClass(), InOuter, Name, ExactClass);
+    return (T*)StaticFindObject(UObject::StaticClass(), nullptr, Name, ExactClass);
 }
 
 template <typename T>
-static T* StaticLoadObject(UClass* Class, UObject* InOuter, const TCHAR* Name, const TCHAR* Filename = nullptr, uint32 LoadFlags = LOAD_None, UPackageMap* Sandbox = nullptr, bool bAllowObjectReconciliation = true)
+static T* StaticLoadObject(const TCHAR* Name, const TCHAR* Filename = nullptr, uint32 LoadFlags = LOAD_None, UPackageMap* Sandbox = nullptr, bool bAllowObjectReconciliation = true)
 {
     // 7FF697676B08
     UObject* (*StaticLoadObject)(UClass* Class, UObject* InOuter, const TCHAR* Name, const TCHAR* Filename, uint32 LoadFlags, UPackageMap* Sandbox, bool bAllowObjectReconciliation, __int64 a6) = decltype(StaticLoadObject)(0x10A6B08 + uintptr_t(GetModuleHandle(0)));
-    return (T*)StaticLoadObject(T::StaticClass(), InOuter, Name, Filename, LoadFlags, Sandbox, bAllowObjectReconciliation, 0);
+    return (T*)StaticLoadObject(T::StaticClass(), nullptr, Name, Filename, LoadFlags, Sandbox, bAllowObjectReconciliation, 0);
 }
+
+#define RESULT_PARAM Z_Param__Result
+#define RESULT_DECL void*const RESULT_PARAM
+
+#pragma pack(push, 0x1)
+class alignas(0x08) FOutputDevice
+{
+public:
+    uint8 Pad_01[0x10];
+};
+#pragma pack(pop)
+
+struct FFrame : public FOutputDevice
+{
+public:
+    UFunction* Node; // 0x10
+    UObject* Object; // 0x18
+    uint8* Code; // 0x20
+    uint8* Locals; // 0x28
+
+    UProperty* MostRecentProperty; // 0x30
+    uint8* MostRecentPropertyAddress; // 0x38
+
+    uint8 Pad_01[0x58];
+
+public:
+    void Step(UObject* Context, RESULT_DECL)
+    {
+        void (*Step)(FFrame* Frame, UObject* Context, RESULT_DECL) = decltype(Step)(0xccb6b8 + uintptr_t(GetModuleHandle(0)));
+        Step(this, Context, RESULT_PARAM);
+    }
+
+    void StepExplicitProperty(void* const Result, UProperty* Property)
+    {
+        void (*StepExplicitProperty)(FFrame* Frame, void* const Result, UProperty* Property) = decltype(StepExplicitProperty)(0xcc9c90 + uintptr_t(GetModuleHandle(0)));
+        StepExplicitProperty(this, Result, Property);
+    }
+
+    void StepCompiledIn(void* const Result)
+    {
+        // https://imgur.com/q5efUyh
+
+        if (Code)
+        {
+            Step(Object, Result);
+        }
+        else
+        {
+            // https://imgur.com/a/CvmkuCy
+            UProperty* Property = (UProperty*)(*(UField**)(__int64(this) + 0x80));
+            *(UField**)(__int64(this) + 0x80) = Property->Next;
+
+            StepExplicitProperty(Result, Property);
+        }
+    }
+
+    template<typename TNativeType>
+    TNativeType& StepCompiledInRef(void* const TemporaryBuffer)
+    {
+        MostRecentPropertyAddress = NULL;
+
+        if (Code)
+        {
+            Step(Object, TemporaryBuffer);
+        }
+        else
+        {
+            // https://imgur.com/a/CvmkuCy
+            UProperty* Property = (UProperty*)(*(UField**)(__int64(this) + 0x80));
+            *(UField**)(__int64(this) + 0x80) = Property->Next;
+
+            StepExplicitProperty(TemporaryBuffer, Property);
+        }
+
+        return (MostRecentPropertyAddress != NULL) ? *(TNativeType*)(MostRecentPropertyAddress) : *(TNativeType*)TemporaryBuffer;
+    }
+};
 
 class Util
 {

@@ -52,6 +52,13 @@ public:
 	TArray<class UReplicationGraphNode*>          PrepareForReplicationNodes;                        // 0x00A8(0x0010)(ZeroConstructor, Protected, UObjectWrapper, NativeAccessSpecifierProtected)
 	uint8                                         Pad_B8[0x4A0];                                     // 0x00B8(0x04A0)(Fixing Struct Size After Last Property [ Dumper-7 ])
 
+	int32 ServerReplicateActors(float DeltaSeconds)
+	{
+		// 7FF69BB197B4
+		int32 (*ServerReplicateActors)(class UReplicationGraph* ReplicationGraph, float DeltaSeconds) = decltype(ServerReplicateActors)(0x55497B4 + uintptr_t(GetModuleHandle(0)));
+		return ServerReplicateActors(this, DeltaSeconds);
+	}
+
 public:
 	static class UClass* StaticClass()
 	{

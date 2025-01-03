@@ -80,6 +80,13 @@ public:
 	TArray<class AOnlineBeaconClient*>            ClientActors;                                      // 0x02B0(0x0010)(ZeroConstructor, UObjectWrapper, NativeAccessSpecifierPrivate)
 	uint8                                         Pad_2C0[0xA0];                                     // 0x02C0(0x00A0)(Fixing Struct Size After Last Property [ Dumper-7 ])
 
+	bool InitHost()
+	{
+		// 7FF69B7201F8
+		bool (*InitHost)(class AOnlineBeaconHost* OnlineBeaconHost) = decltype(InitHost)(0x51501F8 + uintptr_t(GetModuleHandle(0)));
+		return InitHost(this);
+	}
+
 public:
 	static class UClass* StaticClass()
 	{
@@ -521,6 +528,13 @@ public:
 	int32                                         NbPacketsBetweenReceiveTimeTest;                   // 0x0798(0x0004)(ZeroConstructor, Config, IsPlainOldData, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPrivate)
 	float                                         ResolutionConnectionTimeout;                       // 0x079C(0x0004)(ZeroConstructor, Config, IsPlainOldData, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPrivate)
 	uint8                                         Pad_7A0[0x38];                                     // 0x07A0(0x0038)(Fixing Struct Size After Last Property [ Dumper-7 ])
+
+	bool InitListen(void* InNotify, struct FURL& LocalURL, bool bReuseAddressAndPort, class FString& Error)
+	{
+		// 7FF69B72058C
+		bool (*InitListen)(class UIpNetDriver* IpNetDriver, void* InNotify, struct FURL& LocalURL, bool bReuseAddressAndPort, class FString& Error) = decltype(InitListen)(0x515058C + uintptr_t(GetModuleHandle(0)));
+		return InitListen(this, InNotify, LocalURL, bReuseAddressAndPort, Error);
+	}
 
 public:
 	static class UClass* StaticClass()

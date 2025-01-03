@@ -2908,6 +2908,18 @@ public:
 	}
 };
 
+enum class EGetWorldErrorMode
+{
+	// Silently returns nullptr, the calling code is expected to handle this gracefully
+	ReturnNull,
+
+	// Raises a runtime error but still returns nullptr, the calling code is expected to handle this gracefully
+	LogAndReturnNull,
+
+	// Asserts, the calling code is not expecting to handle a failure gracefully
+	Assert
+};
+
 // Class Engine.Engine
 // 0x0D48 (0x0D70 - 0x0028)
 class UEngine : public UObject
@@ -3150,6 +3162,12 @@ public:
 
 public:
 	static class UEngine* GetEngine();
+
+	class UWorld* GetWorldFromContextObject(class UObject* Object, EGetWorldErrorMode ErrorMode)
+	{
+		class UWorld* (*GetWorldFromContextObject)(UEngine* Engine, const class UObject* Object, EGetWorldErrorMode ErrorMode) = decltype(GetWorldFromContextObject)(0xcd2758 + uintptr_t(GetModuleHandle(0)));
+		return GetWorldFromContextObject(this, Object, ErrorMode);
+	}
 
 public:
 	static class UClass* StaticClass()
@@ -4005,6 +4023,12 @@ public:
 	class FString                                 ImportKeyField;                                    // 0x0088(0x0010)(Edit, ZeroConstructor, HasGetValueTypeHash, NativeAccessSpecifierPublic)
 	uint8                                         Pad_98[0x18];                                      // 0x0098(0x0018)(Fixing Struct Size After Last Property [ Dumper-7 ])
 
+	template <typename RowDataType = uint8_t>
+	TMap<FName, RowDataType*>& GetRowMap()
+	{
+		return *(TMap<FName, RowDataType*>*)(__int64(this) + (0x28 + sizeof(UObject*)));
+	}
+
 public:
 	static class UClass* StaticClass()
 	{
@@ -4796,6 +4820,13 @@ public:
 	uint8                                         Pad_208[0x4F0];                                    // 0x0208(0x04F0)(Fixing Size After Last Property [ Dumper-7 ])
 	class UReplicationDriver*                     ReplicationDriver;                                 // 0x06F8(0x0008)(ZeroConstructor, Transient, IsPlainOldData, NoDestructor, UObjectWrapper, HasGetValueTypeHash, NativeAccessSpecifierPrivate)
 	uint8                                         Pad_700[0x68];                                     // 0x0700(0x0068)(Fixing Struct Size After Last Property [ Dumper-7 ])
+
+	void SetWorld(class UWorld* World)
+	{
+		// 7FF697B67AE4
+		void (*SetWorld)(class UNetDriver* NetDriver, class UWorld* World) = decltype(SetWorld)(0x1597AE4 + uintptr_t(GetModuleHandle(0)));
+		SetWorld(this, World);
+	}
 
 public:
 	static class UClass* StaticClass()
@@ -8158,8 +8189,8 @@ public:
 	class AActor* SpawnActor(class UClass* Class, struct FVector const* Location = NULL, struct FRotator const* Rotation = NULL, const struct FActorSpawnParameters& SpawnParameters = FActorSpawnParameters())
 	{
 		// 7FF69787A2FC
-		AActor* (*SpawnActor)(class UClass* Class, struct FVector const* Location, struct FRotator const* Rotation, const struct FActorSpawnParameters& SpawnParameters) = decltype(SpawnActor)(0x12AA2FC + uintptr_t(GetModuleHandle(0)));
-		return SpawnActor(Class, Location, Rotation, SpawnParameters);
+		AActor* (*SpawnActor)(class UWorld* World, class UClass* Class, struct FVector const* Location, struct FRotator const* Rotation, const struct FActorSpawnParameters& SpawnParameters) = decltype(SpawnActor)(0x12AA2FC + uintptr_t(GetModuleHandle(0)));
+		return SpawnActor(this, Class, Location, Rotation, SpawnParameters);
 	}
 
 	class AActor* SpawnActor(class UClass* Class, FTransform const* Transform, const FActorSpawnParameters& SpawnParameters = FActorSpawnParameters())

@@ -594,6 +594,10 @@ public:
 		return InterfacePointer;
 	}
 	
+	FORCEINLINE void* GetInterface() const
+	{
+		return ObjectPointer != NULL ? InterfacePointer : NULL;
+	}
 };
 
 // Predefined struct TScriptInterface

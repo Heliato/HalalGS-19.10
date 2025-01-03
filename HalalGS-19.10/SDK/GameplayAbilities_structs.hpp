@@ -574,12 +574,23 @@ public:
 	uint8                                         Pad_E[0xA];                                        // 0x000E(0x000A)(Fixing Struct Size After Last Property [ Dumper-7 ])
 };
 
+// ScriptStruct GameplayAbilities.ActiveGameplayEffectHandle
+// 0x0008 (0x0008 - 0x0000)
+struct FActiveGameplayEffectHandle final
+{
+public:
+	int32                                         Handle;                                            // 0x0000(0x0004)(ZeroConstructor, IsPlainOldData, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPrivate)
+	bool                                          bPassedFiltersAndWasExecuted;                      // 0x0004(0x0001)(ZeroConstructor, IsPlainOldData, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPrivate)
+	uint8                                         Pad_5[0x3];                                        // 0x0005(0x0003)(Fixing Struct Size After Last Property [ Dumper-7 ])
+};
+
 // ScriptStruct GameplayAbilities.ActiveGameplayEffect
 // 0x0364 (0x0370 - 0x000C)
 struct FActiveGameplayEffect final : public FFastArraySerializerItem
 {
 public:
-	uint8                                         Pad_C[0xC];                                        // 0x000C(0x000C)(Fixing Size After Last Property [ Dumper-7 ])
+	struct FActiveGameplayEffectHandle			  Handle;
+	//uint8                                         Pad_C[0xC];                                        // 0x000C(0x000C)(Fixing Size After Last Property [ Dumper-7 ])
 	struct FGameplayEffectSpec                    Spec;                                              // 0x0018(0x0298)(NativeAccessSpecifierPublic)
 	struct FPredictionKey                         PredictionKey;                                     // 0x02B0(0x0018)(NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPublic)
 	float                                         StartServerWorldTime;                              // 0x02C8(0x0004)(ZeroConstructor, IsPlainOldData, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPublic)
@@ -792,16 +803,6 @@ public:
 	uint8                                         bOverrideSpawnCondition : 1;                       // 0x0070(0x0001)(BitIndex: 0x00, PropSize: 0x0001 (Edit, BlueprintVisible, BlueprintReadOnly, DisableEditOnInstance, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPublic))
 	uint8                                         bOverridePlacementInfo : 1;                        // 0x0070(0x0001)(BitIndex: 0x01, PropSize: 0x0001 (Edit, BlueprintVisible, BlueprintReadOnly, DisableEditOnInstance, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPublic))
 	uint8                                         Pad_71[0x7];                                       // 0x0071(0x0007)(Fixing Struct Size After Last Property [ Dumper-7 ])
-};
-
-// ScriptStruct GameplayAbilities.ActiveGameplayEffectHandle
-// 0x0008 (0x0008 - 0x0000)
-struct FActiveGameplayEffectHandle final
-{
-public:
-	int32                                         Handle;                                            // 0x0000(0x0004)(ZeroConstructor, IsPlainOldData, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPrivate)
-	bool                                          bPassedFiltersAndWasExecuted;                      // 0x0004(0x0001)(ZeroConstructor, IsPlainOldData, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPrivate)
-	uint8                                         Pad_5[0x3];                                        // 0x0005(0x0003)(Fixing Struct Size After Last Property [ Dumper-7 ])
 };
 
 // ScriptStruct GameplayAbilities.GameplayAttributeData
@@ -1140,6 +1141,13 @@ public:
 	TArray<class UGameplayAbility*>               ReplicatedInstances;                               // 0x0080(0x0010)(ZeroConstructor, NativeAccessSpecifierPublic)
 	struct FActiveGameplayEffectHandle            GameplayEffectHandle;                              // 0x0090(0x0008)(RepSkip, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPublic)
 	uint8                                         Pad_98[0x50];                                      // 0x0098(0x0050)(Fixing Struct Size After Last Property [ Dumper-7 ])
+
+	struct FGameplayAbilitySpec* CreateDefaultAbilitySpec(class UGameplayAbility* Ability, int32 Level, int32 InputID, class UObject* SourceObject)
+	{
+		// 7FF6977E0FA4
+		struct FGameplayAbilitySpec* (*CreateDefaultAbilitySpec)(class FGameplayAbilitySpec* GameplayAbilitySpec, class UGameplayAbility* Ability, int32 Level, int32 InputID, class UObject* SourceObject) = decltype(CreateDefaultAbilitySpec)(0x1210FA4 + uintptr_t(GetModuleHandle(0)));
+		return CreateDefaultAbilitySpec(this, Ability, Level, InputID, SourceObject);
+	}
 };
 
 // ScriptStruct GameplayAbilities.GameplayAbilitySpecContainer
