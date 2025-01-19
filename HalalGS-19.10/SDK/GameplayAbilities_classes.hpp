@@ -283,6 +283,12 @@ public:
 		return InternalTryActivateAbility(this, Handle, InPredictionKey, OutInstancedAbility, OnGameplayAbilityEndedDelegate, TriggerEventData);
 	}
 
+	struct FGameplayAbilitySpecHandle GiveAbilityAndActivateOnce(struct FGameplayAbilitySpecHandle* OutHandle, const struct FGameplayAbilitySpec& Spec, const FGameplayEventData* GameplayEventData)
+	{
+		struct FGameplayAbilitySpecHandle(*GiveAbilityAndActivateOnce)(class UAbilitySystemComponent* AbilitySystemComponent, struct FGameplayAbilitySpecHandle* OutHandle, const struct FGameplayAbilitySpec& Spec, const FGameplayEventData* GameplayEventData) = decltype(GiveAbilityAndActivateOnce)(0x4e01290 + uintptr_t(GetModuleHandle(0)));
+		return GiveAbilityAndActivateOnce(this, OutHandle, Spec, GameplayEventData);
+	}
+
 public:
 	static class UClass* StaticClass()
 	{

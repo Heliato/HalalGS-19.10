@@ -37,6 +37,7 @@ namespace GameMode
 			GameModeAthena->CurrentPlaylistName = PlaylistAthena->PlaylistName;
 
 			GameModeAthena->WarmupRequiredPlayerCount = 1;
+			GameModeAthena->bDisableAI = false;
 
 			GameStateAthena->CurrentPlaylistId = PlaylistAthena->PlaylistId;
 			GameStateAthena->OnRep_CurrentPlaylistId();
@@ -72,8 +73,6 @@ namespace GameMode
 			}
 
 			GameStateAthena->bPlaylistDataIsLoaded = true;
-
-			FN_LOG(LogGameMode, Log, "GameStateAthena->bPlaylistDataIsLoaded: %i", GameStateAthena->bPlaylistDataIsLoaded);
 
 			FN_LOG(LogGameMode, Log, "GameStateAthena: %s", GameStateAthena->GetFullName().c_str());
 			FN_LOG(LogGameMode, Log, "GameModeAthena: %s", GameModeAthena->GetFullName().c_str());

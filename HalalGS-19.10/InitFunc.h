@@ -26,6 +26,7 @@ namespace InitFunc
 		Inventory::InitInventory();
 		Functions::InitFunctions();
 		Cheats::InitCheats();
+		Navigation::InitNavigation();
 
 		return true;
 	}

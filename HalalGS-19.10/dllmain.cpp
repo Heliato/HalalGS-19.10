@@ -22,6 +22,7 @@
 #include "Functions/NewInventory.h"
 
 #include "Functions/Loots.h"
+#include "Functions/Navigation.h"
 #include "Functions/Functions.h"
 
 #include "Functions/Beacon.h"

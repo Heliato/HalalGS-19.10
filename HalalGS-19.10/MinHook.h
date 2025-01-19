@@ -21,14 +21,14 @@ namespace MinHook
             // Index Found!
             if (Offset == FuncOffset)
             {
-                FN_LOG(LogHook, Debug, "Index Found: 0x%llx", (unsigned long long)Index);
+                FN_LOG(LogHook, Log, "Index Found: 0x%llx", (unsigned long long)Index);
 
                 return Index;
             }
 
             uintptr_t IdaAddress = Offset + 0x7FF6965D0000ULL;
 
-            FN_LOG(LogHook, Debug, "Index not found: 0x%llx, Offset: 0x%llx, IdaAddress [%p]", (unsigned long long)Index, (unsigned long long)Offset, IdaAddress);
+            FN_LOG(LogHook, Log, "Index not found: 0x%llx, Offset: 0x%llx, IdaAddress [%p]", (unsigned long long)Index, (unsigned long long)Offset, IdaAddress);
 
             Index++;
         }

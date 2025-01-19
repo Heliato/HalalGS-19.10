@@ -128,9 +128,18 @@ namespace Inventory
 
 			if (WeaponItemDefinition)
 			{
-				FFortBaseWeaponStats* WeaponStats = GetWeaponStats(WeaponItemDefinition);
+				FFortBaseWeaponStats* BaseWeaponStats = GetWeaponStats(WeaponItemDefinition);
 
-				ItemEntry->LoadedAmmo = (WeaponStats && LoadedAmmo == -1) ? WeaponStats->ClipSize : LoadedAmmo;
+				int32 (*GetWeaponClipSize)(UFortWeaponItemDefinition* WeaponItemDefinition, int32 WeaponLevel) = decltype(GetWeaponClipSize)(0x21da37c + uintptr_t(GetModuleHandle(0)));
+				int32 WeaponClipSize = GetWeaponClipSize(WeaponItemDefinition, ItemLevel);
+					
+				if (WeaponItemDefinition->bUsesPhantomReserveAmmo)
+				{
+					ItemEntry->PhantomReserveAmmo = (WeaponClipSize - BaseWeaponStats->ClipSize);
+					ItemEntry->LoadedAmmo = BaseWeaponStats ? BaseWeaponStats->ClipSize : 0;
+				}
+				else
+					ItemEntry->LoadedAmmo = WeaponClipSize;
 			}
 		}
 	}
@@ -371,7 +380,7 @@ namespace Inventory
 				if (WorldItemDefinition != WorldItemDefinitionCombine)
 					continue;
 
-				if (PrimaryPickupItemEntry->Count >= UFortScalableFloatUtils::GetValueAtLevel(WorldItemDefinition->MaxStackSize, 0))
+				if (PrimaryPickupItemEntry->Count >= WorldItemDefinition->MaxStackSize.GetValueAtLevel(0))
 					continue;
 
 				ClosestPickup = Pickup;
@@ -472,7 +481,7 @@ namespace Inventory
 				if (!ItemDefinition) continue;
 
 				int32 CurrentCount = WorldItem->ItemEntry.Count;
-				int32 MaxStackSize = UFortScalableFloatUtils::GetValueAtLevel(ItemDefinition->MaxStackSize, 0);
+				int32 MaxStackSize = ItemDefinition->MaxStackSize.GetValueAtLevel(0);
 
 				if (CurrentCount < MaxStackSize)
 				{
@@ -501,7 +510,7 @@ namespace Inventory
 		if (!WorldItemDefinition)
 			return nullptr;
 
-		int32 MaxStackSize = UFortScalableFloatUtils::GetValueAtLevel(WorldItemDefinition->MaxStackSize, 0);
+		int32 MaxStackSize = WorldItemDefinition->MaxStackSize.GetValueAtLevel(0);
 
 		if (ItemEntry.Count > MaxStackSize)
 		{
@@ -649,44 +658,6 @@ namespace Inventory
 		}
 
 		return NewWorldItem;
-	}
-
-	bool RemoveInventoryItem(AFortPlayerController* PlayerController, const FGuid& ItemGuid, int32 AmountToRemove)
-	{
-		UFortWorldItem* WorldItem = Cast<UFortWorldItem>(PlayerController->BP_GetInventoryItemWithGuid(ItemGuid));
-
-		if (!WorldItem)
-			return false;
-
-		FFortItemEntry* ItemEntry = &WorldItem->ItemEntry;
-
-		if (AmountToRemove >= ItemEntry->Count)
-		{
-			UFortWeaponRangedItemDefinition* WeaponRangedItemDefinition = Cast<UFortWeaponRangedItemDefinition>(ItemEntry->ItemDefinition);
-
-			if (WeaponRangedItemDefinition && WeaponRangedItemDefinition->bPersistInInventoryWhenFinalStackEmpty)
-			{
-				int32 ItemQuantity = UFortKismetLibrary::K2_GetItemQuantityOnPlayer(PlayerController, WeaponRangedItemDefinition, FGuid());
-
-				if (ItemQuantity == 1)
-				{
-					ModifyCountItem(PlayerController->WorldInventory, ItemGuid, 0);
-					return true;
-				}
-			}
-
-			RemoveItem(PlayerController->WorldInventory, ItemGuid);
-		}
-		else if (AmountToRemove < ItemEntry->Count)
-		{
-			int32 NewCount = ItemEntry->Count - AmountToRemove;
-
-			ModifyCountItem(PlayerController->WorldInventory, ItemGuid, NewCount);
-		}
-		else
-			return false;
-
-		return true;
 	}
 
 	void SetupInventory(AFortPlayerController* PlayerController, UFortWeaponMeleeItemDefinition* PickaxeItemDefinition)

@@ -18361,6 +18361,18 @@ public:
 		}
 	}
 
+	void SetPhantomReserveAmmo(int32 NewPhantomReserveAmmo)
+	{
+		if (NewPhantomReserveAmmo < 0)
+			NewPhantomReserveAmmo = 0;
+
+		if (NewPhantomReserveAmmo != PhantomReserveAmmo)
+		{
+			PhantomReserveAmmo = NewPhantomReserveAmmo;
+			UpdateItemEntry();
+		}
+	}
+
 	struct FFortItemEntry* CreateItemEntry()
 	{
 		struct FFortItemEntry* (*CreateItemEntry)(struct FFortItemEntry* ItemEntry) = decltype(CreateItemEntry)(0x12812d0 + uintptr_t(GetModuleHandle(0)));

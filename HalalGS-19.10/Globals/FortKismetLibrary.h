@@ -197,7 +197,7 @@ namespace FortKismetLibrary
 			WeakInvestigator.ObjectSerialNumber = 0;
 
 			FFortCreatePickupData PickupData{};
-			PickupData.World = Globals::GetWorld();
+			PickupData.World = World;
 			PickupData.ItemEntry = ItemEntry;
 			PickupData.SpawnLocation = SpawnLocation;
 			PickupData.SpawnRotation = FRotator();
@@ -266,7 +266,7 @@ namespace FortKismetLibrary
 			PlayerController->RemoveInventoryItem(WorldItem->ItemEntry.ItemGuid, AmountToRemove, false, bForceRemoval);
 
 			*Ret = FinalCount;
-			return FinalCount;
+			return *Ret;
 		}
 
 		*Ret = 0;
@@ -340,7 +340,7 @@ namespace FortKismetLibrary
 			PlayerController->RemoveInventoryItem(WorldItem->ItemEntry.ItemGuid, AmountToRemove, false, bForceRemoval);
 
 			*Ret = FinalCount;
-			return FinalCount;
+			return *Ret;
 		}
 
 		*Ret = 0;
@@ -497,7 +497,7 @@ namespace FortKismetLibrary
 		{
 			Pickup->bWeaponsCanBeAutoPickups = !bBlockedFromAutoPickup;
 			Pickup->TossPickup(
-				Direction,
+				Position,
 				nullptr,
 				OverrideMaxStackCount,
 				bToss,
@@ -554,7 +554,53 @@ namespace FortKismetLibrary
 
 		FN_LOG(LogFortKismetLibrary, Log, __FUNCTION__);
 
-		*Ret = nullptr;
+		if (!WorldContextObject || !ItemDefinition || NumberToSpawn <= 0)
+		{
+			*Ret = nullptr;
+			return *Ret;
+		}
+
+		UWorld* World = UEngine::GetEngine()->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+
+		if (!World)
+		{
+			*Ret = nullptr;
+			return *Ret;
+		}
+
+		FFortItemEntry ItemEntry;
+		Inventory::MakeItemEntry(&ItemEntry, ItemDefinition, NumberToSpawn, -1, -1, -1.0f);
+
+		bool bAllowOnlyRevelant = (OptionalOwnerPC && bPickupOnlyRelevantToOwner);
+
+		FFortCreatePickupData* (*CreatePickupData)(FFortCreatePickupData* PickupData, UWorld* World, FFortItemEntry ItemEntry, FVector SpawnLocation, FRotator SpawnRotation, AFortPlayerController* PlayerController, UClass* OverrideClass, AActor* Investigator, int a9, int a10) = decltype(CreatePickupData)(0x64da9dc + uintptr_t(GetModuleHandle(0)));
+
+		FFortCreatePickupData PickupData{};
+		CreatePickupData(&PickupData, World, ItemEntry, Position, FRotator(), bAllowOnlyRevelant ? OptionalOwnerPC : nullptr, PickupClass.Get(), bAllowOnlyRevelant ? OptionalOwnerPC : nullptr, 0, 0);
+		PickupData.bRandomRotation = bRandomRotation;
+		PickupData.PickupSourceTypeFlags = SourceType;
+		PickupData.PickupSpawnSource = Source;
+
+		AFortPickup* (*CreatePickupFromData)(FFortCreatePickupData* PickupData) = decltype(CreatePickupFromData)(0x64dd1b4 + uintptr_t(GetModuleHandle(0)));
+		AFortPickup* Pickup = CreatePickupFromData(&PickupData);
+
+		if (Pickup)
+		{
+			Pickup->bWeaponsCanBeAutoPickups = !bBlockedFromAutoPickup;
+			Pickup->TossPickup(
+				Position,
+				nullptr,
+				OverrideMaxStackCount,
+				bToss,
+				true,
+				SourceType,
+				Source
+			);
+		}
+
+		ItemEntry.FreeItemEntry();
+
+		*Ret = Pickup;
 		return *Ret;
 	}
 
@@ -592,7 +638,54 @@ namespace FortKismetLibrary
 
 		FN_LOG(LogFortKismetLibrary, Log, __FUNCTION__);
 
-		*Ret = nullptr;
+		if (!WorldContextObject)
+		{
+			*Ret = nullptr;
+			return *Ret;
+		}
+
+		UWorld* World = UEngine::GetEngine()->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
+
+		if (!World)
+		{
+			*Ret = nullptr;
+			return *Ret;
+		}
+
+		FFortItemEntry NewItemEntry;
+		NewItemEntry.CopyItemEntryWithReset(&ItemEntry);
+
+		bool bAllowOnlyRevelant = (OptionalOwnerPC && bPickupOnlyRelevantToOwner);
+
+		FFortCreatePickupData* (*CreatePickupData)(FFortCreatePickupData* PickupData, UWorld* World, FFortItemEntry ItemEntry, FVector SpawnLocation, FRotator SpawnRotation, AFortPlayerController* PlayerController, UClass* OverrideClass, AActor* Investigator, int a9, int a10) = decltype(CreatePickupData)(0x64da9dc + uintptr_t(GetModuleHandle(0)));
+
+		FFortCreatePickupData PickupData{};
+		CreatePickupData(&PickupData, World, NewItemEntry, Position, FRotator(), bAllowOnlyRevelant ? OptionalOwnerPC : nullptr, PickupClass.Get(), bAllowOnlyRevelant ? OptionalOwnerPC : nullptr, 0, 0);
+		PickupData.bRandomRotation = bRandomRotation;
+		PickupData.PickupSourceTypeFlags = SourceType;
+		PickupData.PickupSpawnSource = Source;
+
+		AFortPickup* (*CreatePickupFromData)(FFortCreatePickupData* PickupData) = decltype(CreatePickupFromData)(0x64dd1b4 + uintptr_t(GetModuleHandle(0)));
+		AFortPickup* Pickup = CreatePickupFromData(&PickupData);
+
+		if (Pickup)
+		{
+			Pickup->bWeaponsCanBeAutoPickups = !bBlockedFromAutoPickup;
+			Pickup->TossPickup(
+				Position,
+				nullptr,
+				OverrideMaxStackCount,
+				bToss,
+				true,
+				SourceType,
+				Source
+			);
+		}
+
+		NewItemEntry.FreeItemEntry();
+		ItemEntry.FreeItemEntry();
+
+		*Ret = Pickup;
 		return *Ret;
 	}
 
@@ -636,7 +729,24 @@ namespace FortKismetLibrary
 
 		FN_LOG(LogFortKismetLibrary, Log, __FUNCTION__);
 
-		*Ret = nullptr;
+		*Ret = UFortKismetLibrary::K2_SpawnPickupInWorldWithClass(
+			WorldContextObject,
+			ItemDefinition,
+			PickupClass,
+			NumberToSpawn,
+			Position,
+			Direction,
+			OverrideMaxStackCount,
+			bToss,
+			bRandomRotation,
+			bBlockedFromAutoPickup,
+			PickupInstigatorHandle,
+			SourceType,
+			Source,
+			OptionalOwnerPC,
+			bPickupOnlyRelevantToOwner
+		);
+
 		return *Ret;
 	}
 
@@ -678,7 +788,23 @@ namespace FortKismetLibrary
 
 		FN_LOG(LogFortKismetLibrary, Log, __FUNCTION__);
 
-		*Ret = nullptr;
+		*Ret = UFortKismetLibrary::K2_SpawnPickupInWorld(
+			WorldContextObject,
+			ItemDefinition,
+			NumberToSpawn,
+			Position,
+			Direction,
+			OverrideMaxStackCount,
+			bToss,
+			bRandomRotation,
+			bBlockedFromAutoPickup,
+			PickupInstigatorHandle,
+			SourceType,
+			Source,
+			OptionalOwnerPC,
+			bPickupOnlyRelevantToOwner
+		);
+
 		return *Ret;
 	}
 
@@ -708,8 +834,38 @@ namespace FortKismetLibrary
 
 		FN_LOG(LogFortKismetLibrary, Log, __FUNCTION__);
 
-		*Ret = {};
-		return *Ret;
+		Ret->Clear();
+
+		int32 WorldLevel = UFortKismetLibrary::GetLootLevel(WorldContextObject);
+
+		TArray<FFortItemEntry> LootToDrops;
+		UFortKismetLibrary::PickLootDrops(WorldContextObject, &LootToDrops, LootTierName, WorldLevel, -1);
+
+		for (int32 i = 0; i < LootToDrops.Num(); i++)
+		{
+			AFortPickup* Pickup = UFortKismetLibrary::K2_SpawnPickupInWorldWithClassAndItemEntry(
+				WorldContextObject,
+				LootToDrops[i],
+				AFortPickupAthena::StaticClass(),
+				Position,
+				Position,
+				OverrideMaxStackCount,
+				bToss,
+				true,
+				false,
+				SourceType,
+				Source,
+				nullptr,
+				false
+			);
+
+			if (!Pickup)
+				continue;
+
+			Ret->Add(Pickup);
+		}
+
+		*Ret;
 	}
 
 	bool PickLootDrops(UFortKismetLibrary* KismetLibrary, FFrame& Stack, bool* Ret)
@@ -751,14 +907,14 @@ namespace FortKismetLibrary
 	bool PickLootDropsWithNamedWeights(UFortKismetLibrary* KismetLibrary, FFrame& Stack, bool* Ret)
 	{
 		UObject* WorldContextObject;
-		TArray<FFortItemEntry> OutLootToDrop;
+		TArray<FFortItemEntry> OutLootToDrop{};
 		FName TierGroupName;
 		int32 WorldLevel;
 		TMap<FName, float> NamedWeightsMap;
 		int32 ForcedLootTier;
 
 		Stack.StepCompiledIn(&WorldContextObject);
-		Stack.StepCompiledIn(&OutLootToDrop);
+		TArray<FFortItemEntry>& LootToDrops = Stack.StepCompiledInRef<TArray<FFortItemEntry>>(&OutLootToDrop);
 		Stack.StepCompiledIn(&TierGroupName);
 		Stack.StepCompiledIn(&WorldLevel);
 		Stack.StepCompiledIn(&NamedWeightsMap);
@@ -767,6 +923,10 @@ namespace FortKismetLibrary
 		Stack.Code += Stack.Code != nullptr;
 
 		FN_LOG(LogFortKismetLibrary, Log, __FUNCTION__);
+
+		FFortItemEntry::FreeItemEntries(&OutLootToDrop);
+
+
 
 		*Ret = false;
 		return *Ret;
@@ -798,7 +958,24 @@ namespace FortKismetLibrary
 
 		FN_LOG(LogFortKismetLibrary, Log, __FUNCTION__);
 
-		*Ret = false;
+		AFortPickup* Pickup = UFortKismetLibrary::K2_SpawnPickupInWorld(
+			WorldContextObject,
+			ItemDefinition,
+			NumberToSpawn,
+			Position,
+			Direction,
+			OverrideMaxStackCount,
+			bToss,
+			bRandomRotation,
+			bBlockedFromAutoPickup,
+			0,
+			EFortPickupSourceTypeFlag::Other,
+			EFortPickupSpawnSource::Unset,
+			nullptr,
+			false
+		);
+		
+		*Ret = (Pickup != nullptr);
 		return *Ret;
 	}
 
@@ -814,7 +991,23 @@ namespace FortKismetLibrary
 
 		FN_LOG(LogFortKismetLibrary, Log, __FUNCTION__);
 
-		*Ret = nullptr;
+		*Ret = UFortKismetLibrary::K2_SpawnPickupInWorld(
+			WorldContextObject, 
+			Params_0.WorldItemDefinition, 
+			Params_0.NumberToSpawn, 
+			Params_0.Position, 
+			Params_0.Direction, 
+			Params_0.OverrideMaxStackCount, 
+			Params_0.bToss, 
+			Params_0.bRandomRotation, 
+			Params_0.bBlockedFromAutoPickup,
+			Params_0.PickupInstigatorHandle,
+			Params_0.SourceType,
+			Params_0.Source,
+			Params_0.OptionalOwnerPC,
+			Params_0.bPickupOnlyRelevantToOwner
+		);
+
 		return *Ret;
 	}
 

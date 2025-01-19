@@ -106,12 +106,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="SDK\AthenaFunctionLibrary_functions.cpp" />
     <ClCompile Include="SDK\Basic.cpp" />
+    <ClCompile Include="SDK\CommonConversationRuntime_functions.cpp" />
     <ClCompile Include="SDK\CoreUObject_functions.cpp" />
     <ClCompile Include="SDK\Engine_functions.cpp" />
     <ClCompile Include="SDK\FortniteGame_functions.cpp" />
     <ClCompile Include="SDK\FortniteUI_functions.cpp" />
     <ClCompile Include="SDK\GameplayAbilities_functions.cpp" />
+    <ClCompile Include="SDK\NavigationSystem_functions.cpp" />
     <ClCompile Include="SDK\OnlineSubsystemUtils_functions.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -120,6 +123,7 @@
     <ClInclude Include="Functions\Cheats.h" />
     <ClInclude Include="Functions\Functions.h" />
     <ClInclude Include="Functions\Loots.h" />
+    <ClInclude Include="Functions\Navigation.h" />
     <ClInclude Include="Functions\NewInventory.h" />
     <ClInclude Include="Globals.h" />
     <ClInclude Include="Globals\BuildingActor.h" />

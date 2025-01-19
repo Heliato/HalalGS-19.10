@@ -362,6 +362,7 @@ public:
 template<typename ClassType>
 class TSubclassOf
 {
+public:
 	class UClass* ClassPtr;
 
 public:

@@ -1,5 +1,13 @@
 #pragma once
 
+#include <algorithm>
+#include <time.h>
+#include <vector>
+#include <unordered_map>
+#include <functional>
+#include <string>
+#include <sstream>
+
 // InventoryOwner = 0x710
 
 #define CHEATS
@@ -7,6 +15,7 @@
 // #define SIPHON
 // #define QUESTS
 // #define LATEGAME
+#define FLOORLOOT
 #define BOTS
 
 template<typename T = UObject>
@@ -18,6 +27,20 @@ static T* Cast(UObject* Object)
 	}
 
 	return nullptr;
+}
+
+std::vector<std::string> split(const std::string& s, char delimiter)
+{
+	std::vector<std::string> tokens;
+	std::string token;
+	std::istringstream tokenStream(s);
+
+	while (std::getline(tokenStream, token, delimiter))
+	{
+		tokens.push_back(token);
+	}
+
+	return tokens;
 }
 
 namespace Globals
@@ -56,13 +79,13 @@ namespace Globals
 		return Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
 	}
 
-	AFortGameMode* GetGameMode()
+	AFortGameModeAthena* GetGameMode()
 	{
 		UWorld* World = GetWorld();
 
 		if (World)
 		{
-			AFortGameMode* GameMode = Cast<AFortGameMode>(World->AuthorityGameMode);
+			AFortGameModeAthena* GameMode = Cast<AFortGameModeAthena>(World->AuthorityGameMode);
 
 			if (GameMode)
 				return GameMode;
@@ -71,13 +94,13 @@ namespace Globals
 		return nullptr;
 	}
 
-	AFortGameState* GetGameState()
+	AFortGameStateAthena* GetGameState()
 	{
 		UWorld* World = GetWorld();
 
 		if (World)
 		{
-			AFortGameState* GameState = Cast<AFortGameState>(World->GameState);
+			AFortGameStateAthena* GameState = Cast<AFortGameStateAthena>(World->GameState);
 
 			if (GameState)
 				return GameState;

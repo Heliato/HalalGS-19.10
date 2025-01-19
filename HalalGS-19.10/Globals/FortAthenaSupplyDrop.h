@@ -50,7 +50,7 @@ namespace FortAthenaSupplyDrop
 		if (GameModePickup)
 		{
 			GameModePickup->TossPickup(
-				Direction,
+				Position,
 				nullptr,
 				0,
 				true,
@@ -82,6 +82,8 @@ namespace FortAthenaSupplyDrop
 		Stack.StepCompiledIn(&Position);
 		Stack.StepCompiledIn(&Direction);
 
+		Stack.Code += Stack.Code != nullptr;
+
 		if (!ItemDefinition || NumberToSpawn <= 0)
 		{
 			*Ret = nullptr;
@@ -106,13 +108,13 @@ namespace FortAthenaSupplyDrop
 		PickupData.PickupSourceTypeFlags = EFortPickupSourceTypeFlag::Container;
 		PickupData.PickupSpawnSource = EFortPickupSpawnSource::SupplyDrop;
 
-		AFortPickup* (*CreatePickupFromData)(FFortCreatePickupData * PickupData) = decltype(CreatePickupFromData)(0x64dd1b4 + uintptr_t(GetModuleHandle(0)));
+		AFortPickup* (*CreatePickupFromData)(FFortCreatePickupData* PickupData) = decltype(CreatePickupFromData)(0x64dd1b4 + uintptr_t(GetModuleHandle(0)));
 		AFortPickup* Pickup = CreatePickupFromData(&PickupData);
 
 		if (Pickup)
 		{
 			Pickup->TossPickup(
-				Direction,
+				Position,
 				nullptr,
 				0,
 				true,
@@ -146,6 +148,8 @@ namespace FortAthenaSupplyDrop
 		Stack.StepCompiledIn(&Position);
 		Stack.StepCompiledIn(&Direction);
 
+		Stack.Code += Stack.Code != nullptr;
+
 		if (!ItemDefinition || NumberToSpawn <= 0)
 		{
 			*Ret = nullptr;
@@ -176,7 +180,7 @@ namespace FortAthenaSupplyDrop
 		if (Pickup)
 		{
 			Pickup->TossPickup(
-				Direction,
+				Position,
 				nullptr,
 				0,
 				true,

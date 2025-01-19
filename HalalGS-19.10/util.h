@@ -1,6 +1,6 @@
 #pragma once
 
-inline bool bDebugLog = true;
+inline bool bDebugLog = false;
 
 enum LogLevel {
     Log,
@@ -111,9 +111,9 @@ public:
         Step(this, Context, RESULT_PARAM);
     }
 
-    void StepExplicitProperty(void* const Result, UProperty* Property)
+    void StepExplicitProperty(void* const Result, FProperty* Property)
     {
-        void (*StepExplicitProperty)(FFrame* Frame, void* const Result, UProperty* Property) = decltype(StepExplicitProperty)(0xcc9c90 + uintptr_t(GetModuleHandle(0)));
+        void (*StepExplicitProperty)(FFrame* Frame, void* const Result, FProperty* Property) = decltype(StepExplicitProperty)(0xcc9c90 + uintptr_t(GetModuleHandle(0)));
         StepExplicitProperty(this, Result, Property);
     }
 
@@ -128,8 +128,8 @@ public:
         else
         {
             // https://imgur.com/a/CvmkuCy
-            UProperty* Property = (UProperty*)(*(UField**)(__int64(this) + 0x80));
-            *(UField**)(__int64(this) + 0x80) = Property->Next;
+            FProperty* Property = (FProperty*)(*(FField**)(__int64(this) + 0x80));
+            *(FField**)(__int64(this) + 0x80) = Property->Next;
 
             StepExplicitProperty(Result, Property);
         }
@@ -147,8 +147,8 @@ public:
         else
         {
             // https://imgur.com/a/CvmkuCy
-            UProperty* Property = (UProperty*)(*(UField**)(__int64(this) + 0x80));
-            *(UField**)(__int64(this) + 0x80) = Property->Next;
+            FProperty* Property = (FProperty*)(*(FField**)(__int64(this) + 0x80));
+            *(FField**)(__int64(this) + 0x80) = Property->Next;
 
             StepExplicitProperty(TemporaryBuffer, Property);
         }

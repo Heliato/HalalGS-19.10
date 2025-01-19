@@ -293,6 +293,13 @@ public:
 	}
 };
 
+enum class ELockRemovalRebuildAction
+{
+	Rebuild,
+	RebuildIfNotInEditor,
+	NoRebuild
+};
+
 // Class NavigationSystem.NavigationSystemV1
 // 0x15C8 (0x15F0 - 0x0028)
 class UNavigationSystemV1 : public UNavigationSystemBase
@@ -309,7 +316,7 @@ public:
 	uint8                                         bTickWhilePaused : 1;                              // 0x0068(0x0001)(BitIndex: 0x04, PropSize: 0x0001 (Edit, Config, NoDestructor, Protected, HasGetValueTypeHash, NativeAccessSpecifierProtected))
 	uint8                                         bSupportRebuilding : 1;                            // 0x0068(0x0001)(BitIndex: 0x05, PropSize: 0x0001 (NoDestructor, Protected, HasGetValueTypeHash, NativeAccessSpecifierProtected))
 	uint8                                         bInitialBuildingLocked : 1;                        // 0x0068(0x0001)(BitIndex: 0x06, PropSize: 0x0001 (Edit, Config, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPublic))
-	uint8                                         BitPad_68_7 : 1;                                   // 0x0068(0x0001)(Fixing Bit-Field Size For New Byte [ Dumper-7 ])
+	uint32										  bWholeWorldNavigable : 1;
 	uint8                                         bSkipAgentHeightCheckWhenPickingNavData : 1;       // 0x0069(0x0001)(BitIndex: 0x00, PropSize: 0x0001 (Edit, Config, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPublic))
 	uint8                                         bGenerateNavigationOnlyAroundNavigationInvokers : 1; // 0x0069(0x0001)(BitIndex: 0x01, PropSize: 0x0001 (Edit, Config, DisableEditOnInstance, NoDestructor, Protected, HasGetValueTypeHash, NativeAccessSpecifierProtected))
 	uint8                                         Pad_6A[0x2];                                       // 0x006A(0x0002)(Fixing Size After Last Property [ Dumper-7 ])
@@ -359,6 +366,64 @@ public:
 	void SetGeometryGatheringMode(ENavDataGatheringModeConfig NewMode);
 	void SetMaxSimultaneousTileGenerationJobsCount(int32 MaxNumberOfJobs);
 	void UnregisterNavigationInvoker(class AActor* Invoker);
+	
+	uint8 GetNavBuildingLockFlags()
+	{
+		return *(uint8*)(__int64(this) + 0x3C0);
+	}
+
+	void SetNavBuildingLockFlags(uint8 Flags)
+	{
+		*(uint8*)(__int64(this) + 0x3C0) = Flags;
+	}
+
+	void RebuildAll(bool bIsLoadTime)
+	{
+		void (*RebuildAll)(UNavigationSystemV1* NavigationSystemV1, bool bIsLoadTime) = decltype(RebuildAll)(0x7c02a3c + uintptr_t(GetModuleHandle(0)));
+		RebuildAll(this, bIsLoadTime);
+	}
+
+	void AddNavigationBuildLock(uint8 Flags)
+	{
+		void (*AddNavigationBuildLock)(UNavigationSystemV1* NavigationSystemV1, uint8 Flags) = decltype(AddNavigationBuildLock)(0x249ab8c + uintptr_t(GetModuleHandle(0)));
+		AddNavigationBuildLock(this, Flags);
+	}
+
+	void RemoveNavigationBuildLock(uint8 Flags, const ELockRemovalRebuildAction RebuildAction)
+	{
+		void (*RemoveNavigationBuildLock)(UNavigationSystemV1* NavigationSystemV1, uint8 Flags, const ELockRemovalRebuildAction RebuildAction) = decltype(RemoveNavigationBuildLock)(0x7c03d84 + uintptr_t(GetModuleHandle(0)));
+		RemoveNavigationBuildLock(this, Flags, RebuildAction);
+	}
+
+	void SetNavigationOctreeLock(bool bLock)
+	{
+		void (*SetNavigationOctreeLock)(UNavigationSystemV1* NavigationSystemV1, bool bLock) = decltype(SetNavigationOctreeLock)(0x7c059a4 + uintptr_t(GetModuleHandle(0)));
+		SetNavigationOctreeLock(this, bLock);
+	}
+
+	void ProcessRegistrationCandidates() // Pas fait
+	{
+		void (*ProcessRegistrationCandidates)(UNavigationSystemV1* NavigationSystemV1) = decltype(ProcessRegistrationCandidates)(0x7c02a3c + uintptr_t(GetModuleHandle(0)));
+		ProcessRegistrationCandidates(this);
+	}
+
+	void RegisterNavigationDataInstances() // Pas fait
+	{
+		void (*RegisterNavigationDataInstances)(UNavigationSystemV1* NavigationSystemV1) = decltype(RegisterNavigationDataInstances)(0x7c02a3c + uintptr_t(GetModuleHandle(0)));
+		RegisterNavigationDataInstances(this);
+	}
+
+	void ConditionalPopulateNavOctree() // Pas fait
+	{
+		void (*ConditionalPopulateNavOctree)(UNavigationSystemV1* NavigationSystemV1) = decltype(ConditionalPopulateNavOctree)(0x7c02a3c + uintptr_t(GetModuleHandle(0)));
+		ConditionalPopulateNavOctree(this);
+	}
+
+	void SpawnMissingNavigationData()
+	{
+		void (*SpawnMissingNavigationData)(UNavigationSystemV1* NavigationSystemV1) = decltype(SpawnMissingNavigationData)(0x7c05fe0 + uintptr_t(GetModuleHandle(0)));
+		SpawnMissingNavigationData(this);
+	}
 
 public:
 	static class UClass* StaticClass()

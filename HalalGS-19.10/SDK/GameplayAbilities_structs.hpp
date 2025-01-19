@@ -497,6 +497,12 @@ public:
 	struct FCurveTableRowHandle                   Curve;                                             // 0x0008(0x0010)(Edit, BlueprintVisible, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPublic)
 	struct FDataRegistryType                      RegistryType;                                      // 0x0018(0x0008)(Edit, BlueprintVisible, ZeroConstructor, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPublic)
 	uint8                                         Pad_20[0x8];                                       // 0x0020(0x0008)(Fixing Struct Size After Last Property [ Dumper-7 ])
+
+	float GetValueAtLevel(float Level, const class FString* ContextString = nullptr)
+	{
+		float (*GetValueAtLevel)(FScalableFloat* ScalableFloat, float Level, const class FString* ContextString) = decltype(GetValueAtLevel)(0xd62a1c + uintptr_t(GetModuleHandle(0)));
+		return GetValueAtLevel(this, Level, ContextString);
+	}
 };
 
 // ScriptStruct GameplayAbilities.GameplayAbilitySpecHandle

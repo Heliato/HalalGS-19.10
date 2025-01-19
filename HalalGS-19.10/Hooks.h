@@ -128,7 +128,74 @@ namespace Hooks
 				}
 			}
 			
-			if (!Weapon->EquippedAbilityHandles.Num() && !Weapon->EquippedAbilitySetHandles.Num())
+			if (!Weapon->EquippedAbilityHandles.Num())
+			{
+				TArray<TSoftClassPtr<UClass>> EquippedAbilities = Weapon->WeaponData->EquippedAbilities;
+
+				for (int32 i = 0; i < EquippedAbilities.Num(); i++)
+				{
+					if (!EquippedAbilities[i].Get()) continue;
+
+					UGameplayAbility* GameplayAbility = Cast<UGameplayAbility>(EquippedAbilities[i].Get()->CreateDefaultObject());
+					if (!GameplayAbility) continue;
+
+					FGameplayAbilitySpec GameplayAbilitySpec;
+					GameplayAbilitySpec.CreateDefaultAbilitySpec(GameplayAbility, 1, -1, Weapon);
+
+					FGameplayAbilitySpecHandle Handle;
+					AbilitySystemComponent->GiveAbility(&Handle, GameplayAbilitySpec);
+				
+					Weapon->EquippedAbilityHandles.Add(Handle);
+				}
+			}
+
+			if (!Weapon->EquippedAbilitySetHandles.Num())
+			{
+				UFortAbilitySet* AbilitySet = Functions::LoadAbilitySet(Weapon->WeaponData->EquippedAbilitySet);
+
+				if (AbilitySet)
+				{
+					FFortAbilitySetHandle AbilitySetHandle{};
+
+					AbilitySetHandle.TargetAbilitySystemComponent.ObjectIndex = AbilitySystemComponent->Index;
+					AbilitySetHandle.TargetAbilitySystemComponent.ObjectSerialNumber = 0;
+
+					AbilitySetHandle.GrantedAbilityHandles = {};
+					AbilitySetHandle.AppliedEffectHandles = {};
+					AbilitySetHandle.ItemGuidsForAdditionalItems = {};
+
+					for (int32 i = 0; i < AbilitySet->GameplayAbilities.Num(); i++)
+					{
+						if (!AbilitySet->GameplayAbilities[i]) continue;
+
+						UGameplayAbility* GameplayAbility = Cast<UGameplayAbility>(AbilitySet->GameplayAbilities[i]->CreateDefaultObject());
+						if (!GameplayAbility) continue;
+
+						FGameplayAbilitySpec GameplayAbilitySpec;
+						GameplayAbilitySpec.CreateDefaultAbilitySpec(GameplayAbility, 1, -1, Weapon);
+
+						FGameplayAbilitySpecHandle Handle;
+						AbilitySystemComponent->GiveAbility(&Handle, GameplayAbilitySpec);
+
+						AbilitySetHandle.GrantedAbilityHandles.Add(Handle);
+					}
+
+					for (int32 i = 0; i < AbilitySet->GrantedGameplayEffects.Num(); i++)
+					{
+						FGameplayEffectApplicationInfoHard* GrantedGameplayEffect = &AbilitySet->GrantedGameplayEffects[i];
+						if (!GrantedGameplayEffect) continue;
+
+						FGameplayEffectContextHandle EffectContext{};
+						FActiveGameplayEffectHandle GameplayEffectHandle = AbilitySystemComponent->BP_ApplyGameplayEffectToSelf(GrantedGameplayEffect->GameplayEffect, GrantedGameplayEffect->Level, EffectContext);
+
+						AbilitySetHandle.AppliedEffectHandles.Add(GameplayEffectHandle);
+					}
+
+					Weapon->EquippedAbilitySetHandles.Add(AbilitySetHandle);
+				}
+			}
+
+			/*if (!Weapon->EquippedAbilityHandles.Num() && !Weapon->EquippedAbilitySetHandles.Num())
 			{
 				TArray<TSoftClassPtr<UClass>> EquippedAbilities = Weapon->WeaponData->EquippedAbilities;
 
@@ -188,21 +255,10 @@ namespace Hooks
 							FN_LOG(LogHooks, Log, "%i - GameplayAbilityClass: %s", j, GameplayAbilityClass->GetFullName().c_str());
 
 							UGameplayAbility* DefaultGameplayAbility = Cast<UGameplayAbility>(GameplayAbilityClass->CreateDefaultObject());
-
-							/*if (DefaultGameplayAbility)
-							{
-								FGameplayAbilitySpec GameplayAbilitySpec;
-								GameplayAbilitySpec.CreateDefaultAbilitySpec(DefaultGameplayAbility, 1, -1, Weapon);
-
-								FGameplayAbilitySpecHandle Handle;
-								AbilitySystemComponent->GiveAbility(&Handle, GameplayAbilitySpec);
-
-								Weapon->EquippedAbilitySetHandles.Add(Handle);
-							}*/
 						}
 					}
 				}
-			}
+			}*/
 
 			/*
 				TSoftClassPtr<class UClass>                   OnHitAbility;                                      // 0x0A30(0x0028)(Edit, Protected, UObjectWrapper, HasGetValueTypeHash, NativeAccessSpecifierProtected)
@@ -243,7 +299,7 @@ namespace Hooks
 				Weapon->ReloadAbilitySpecHandle.Handle = -1;
 			}
 
-			/*if (Weapon->ImpactAbilitySpecHandle.Handle != -1)
+			if (Weapon->ImpactAbilitySpecHandle.Handle != -1)
 			{
 				AbilitySystemComponent->ClearAbility(Weapon->ImpactAbilitySpecHandle);
 				Weapon->ImpactAbilitySpecHandle.Handle = -1;
@@ -253,7 +309,7 @@ namespace Hooks
 			{
 				AbilitySystemComponent->ClearAbility(Weapon->ReticleTraceOverrideSpecHandle);
 				Weapon->ReticleTraceOverrideSpecHandle.Handle = -1;
-			}*/
+			}
 
 			for (int32 i = 0; i < Weapon->EquippedAbilityHandles.Num(); i++)
 			{
@@ -319,10 +375,20 @@ namespace Hooks
 				if (!PlayerController || !PlayerController->Pawn)
 					return;
 
-				auto WoodItemData = StaticFindObject<UFortResourceItemDefinition>(L"/Game/Items/ResourcePickups/WoodItemData.WoodItemData");
+				auto WoodItemData = StaticFindObject<UFortResourceItemDefinition>(L"/Game/Athena/Items/Weapons/Boss/WID_Boss_Adventure_GH.WID_Boss_Adventure_GH");
 
 				FFortItemEntry ItemEntry;
-				ItemEntry.CreateDefaultItemEntry(WoodItemData, 30, 0);
+				ItemEntry.CreateDefaultItemEntry(WoodItemData, 1, 0);
+
+				UFortWeaponItemDefinition* WeaponItemDefinition = Cast<UFortWeaponItemDefinition>(WoodItemData);
+
+				if (WeaponItemDefinition)
+				{
+					int32(*GetWeaponClipSize)(UFortWeaponItemDefinition * WeaponItemDefinition, int32 WeaponLevel) = decltype(GetWeaponClipSize)(0x21da37c + uintptr_t(GetModuleHandle(0)));
+					ItemEntry.LoadedAmmo = GetWeaponClipSize(WeaponItemDefinition, ItemEntry.Level);
+
+					FN_LOG(LogHooks, Log, "WeaponClipSize: %i", ItemEntry.LoadedAmmo);
+				}
 
 				TWeakObjectPtr<AFortPlayerController> WeakPlayerController{};
 				WeakPlayerController.ObjectIndex = -1;
@@ -390,13 +456,38 @@ namespace Hooks
 				if (!PlayerController || !PlayerController->Pawn)
 					return;
 
-				//auto TID_ContextTrap_Athena = StaticFindObject<UFortContextTrapItemDefinition>(L"/Game/Athena/Items/Traps/TID_ContextTrap_Athena.TID_ContextTrap_Athena");
-				auto TID_ContextTrap_Athena = StaticFindObject<UFortWeaponRangedItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Hook_Gun_VR_Ore_T03.WID_Hook_Gun_VR_Ore_T03");
-				// FortniteGame/Content.uasset
+				AFortDagwoodVehicle;
+
+				// FortniteGame/Content/Athena/Items/Weapons/Prototype/WID_FringePlank_Athena_Prototype.uasset
+
+				auto TID_ContextTrap_Athena = StaticFindObject<UFortWeaponRangedItemDefinition>(L"/Game/Athena/Items/Weapons/Prototype/WID_FringePlank_Athena_Prototype.WID_FringePlank_Athena_Prototype");
+				// auto TID_ContextTrap_Athena = StaticFindObject<UFortContextTrapItemDefinition>(L"/ParallelGameplay/Items/WestSausage/WID_WestSausage_Parallel_L_M.WID_WestSausage_Parallel_L_M");
+				// auto TID_ContextTrap_Athena = StaticFindObject<UFortContextTrapItemDefinition>(L"/Game/Athena/Items/Traps/TID_ContextTrap_Athena.TID_ContextTrap_Athena");
+				// auto TID_ContextTrap_Athena = StaticFindObject<UFortWeaponRangedItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Hook_Gun_VR_Ore_T03.WID_Hook_Gun_VR_Ore_T03");
+				// auto TID_ContextTrap_Athena = StaticFindObject<UFortWeaponRangedItemDefinition>(L"/Game/Athena/Items/Weapons/WID_AshtonPack_Indigo.WID_AshtonPack_Indigo");
 
 				FFortItemEntry ItemEntry;
 				ItemEntry.CreateDefaultItemEntry(TID_ContextTrap_Athena, 1, 0);
-				ItemEntry.LoadedAmmo = 10;
+
+				UFortWeaponItemDefinition* WeaponItemDefinition = Cast<UFortWeaponItemDefinition>(TID_ContextTrap_Athena);
+
+				if (WeaponItemDefinition)
+				{
+					FFortBaseWeaponStats* BaseWeaponStats = Inventory::GetWeaponStats(WeaponItemDefinition);
+
+					int32(*GetWeaponClipSize)(UFortWeaponItemDefinition* WeaponItemDefinition, int32 WeaponLevel) = decltype(GetWeaponClipSize)(0x21da37c + uintptr_t(GetModuleHandle(0)));
+					int32 WeaponClipSize = GetWeaponClipSize(WeaponItemDefinition, ItemEntry.Level);
+
+					if (WeaponItemDefinition->bUsesPhantomReserveAmmo)
+					{
+						ItemEntry.PhantomReserveAmmo = (WeaponClipSize - BaseWeaponStats->ClipSize);
+						ItemEntry.LoadedAmmo = BaseWeaponStats ? BaseWeaponStats->ClipSize : 0;
+					}
+					else
+						ItemEntry.LoadedAmmo = WeaponClipSize;
+
+					FN_LOG(LogHooks, Log, "WeaponClipSize: %i", WeaponClipSize);
+				}
 
 				TWeakObjectPtr<AFortPlayerController> WeakPlayerController{};
 				WeakPlayerController.ObjectIndex = -1;
@@ -463,6 +554,18 @@ namespace Hooks
 
 				if (!PlayerController)
 					return;
+
+				for (int32 i = 0; i < PlayerController->WorldInventory->Inventory.ItemInstances.Num(); i++)
+				{
+					UFortWorldItem* WorldItem = PlayerController->WorldInventory->Inventory.ItemInstances[i];
+					if (!WorldItem) continue;
+
+					UFortItemDefinition* ItemDefinition = WorldItem->ItemEntry.ItemDefinition;
+					if (!ItemDefinition) continue;
+
+					FN_LOG(LogHooks, Log, "%i - ItemDefinition: %s, Count: %i, LoadedAmmo: %i", 
+						i, ItemDefinition->GetName().c_str(), WorldItem->ItemEntry.Count, WorldItem->ItemEntry.LoadedAmmo);
+				}
 
 				AFortPlayerStateAthena* PlayerStateAthena = Cast<AFortPlayerStateAthena>(PlayerController->PlayerState);
 
@@ -561,38 +664,219 @@ namespace Hooks
 			{
 				AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
 
-				if (!PlayerController || !PlayerController->Pawn)
+				if (!PlayerController)
 					return;
 
-				FName TierGroupName = UKismetStringLibrary::Conv_StringToName(L"Loot_AthenaTreasure");
-				int32 WorldLevel = UFortKismetLibrary::GetLootLevel(PlayerController);
+				AFortPlayerPawn* PlayerPawnFFFF = PlayerController->GetPlayerPawn();
 
-				int32 LootTier = -1;
-				FName LootTierKey = FName(0);
-				bool bResult = Loots::PickLootTierKeyAndLootTierFromTierGroup(&LootTierKey, &LootTier, TierGroupName, WorldLevel, 0, -1, FGameplayTagContainer());
+				if (!PlayerPawnFFFF)
+					return;
 
-				FN_LOG(LogHooks, Log, "bResult: %i, TierGroupName: %s, LootTierKey: %s, LootTier: %i, ", bResult, TierGroupName.ToString().c_str(), LootTierKey.ToString().c_str(), LootTier);
+				UWorld* World = PlayerController->GetWorld();
+
+				AAthena_PlayerController_C* PlayerControllerAthena = Cast<AAthena_PlayerController_C>(World->SpawnActor(AAthena_PlayerController_C::StaticClass()));
+				AFortGameModeAthena* GameModeAthena = Cast<AFortGameModeAthena>(Globals::GetGameMode());
+
+				if (PlayerControllerAthena && GameModeAthena)
+				{
+					void (*ChoosePlayerTeam)(AFortGameModeAthena * GameModeAthena, AFortPlayerControllerAthena * PlayerController) = decltype(ChoosePlayerTeam)(0x5f9c110 + uintptr_t(GetModuleHandle(0)));
+					ChoosePlayerTeam(GameModeAthena, PlayerControllerAthena);
+
+					GameModeAthena->AddFromAlivePlayers(PlayerControllerAthena);
+
+					AFortInventory* WorldInventory = PlayerControllerAthena->WorldInventory;
+
+					if (!WorldInventory)
+					{
+						WorldInventory = Cast<AFortInventory>(World->SpawnActor(AFortInventory::StaticClass()));
+
+						if (WorldInventory)
+						{
+							WorldInventory->SetOwner(PlayerControllerAthena);
+							WorldInventory->OnRep_Owner();
+
+							PlayerControllerAthena->WorldInventory = WorldInventory;
+							PlayerControllerAthena->bHasInitializedWorldInventory = true;
+							PlayerControllerAthena->WorldInventory->HandleInventoryLocalUpdate();
+						}
+					}
+
+					AFortPlayerPawn* PlayerPawn = Util::SpawnPlayer(PlayerControllerAthena, PlayerPawnFFFF->K2_GetActorLocation(), FRotator(), true);
+					AFortPlayerStateAthena* PlayerState = Cast<AFortPlayerStateAthena>(PlayerControllerAthena->PlayerState);
+					UFortAbilitySystemComponent* AbilitySystemComponent = PlayerState->AbilitySystemComponent;
+
+					if (!AbilitySystemComponent)
+						AbilitySystemComponent = Cast<UFortAbilitySystemComponent>(UGameplayStatics::SpawnObject(UFortAbilitySystemComponent::StaticClass(), PlayerState));
+
+					if (PlayerPawn && PlayerState && AbilitySystemComponent)
+					{
+						PlayerPawn->bCanBeDamaged = true;
+
+						AbilitySystemComponent->ClearAllAbilities();
+
+						UGameDataBR* GameDataBR = Globals::GetGameDataBR();
+						UFortAbilitySet* DefaultAbilities = Functions::LoadAbilitySet(GameDataBR->PlayerAbilitySetBR);
+
+						Abilities::GrantGameplayAbility(DefaultAbilities, AbilitySystemComponent);
+						Abilities::GrantGameplayEffect(DefaultAbilities, AbilitySystemComponent);
+						Abilities::GrantModifierAbilityFromPlaylist(AbilitySystemComponent);
+
+						PlayerState->ApplyCharacterCustomization(PlayerPawn);
+					}
+				}
+
+				/*static auto FortPlayerControllerAthenaDefault = (AFortPlayerControllerAthena*)(AFortPlayerControllerAthena::StaticClass())->DefaultObject;
+
+				static auto IdkDefault = (void*)(__int64(FortPlayerControllerAthenaDefault) + 0x710);*/
+
+				/*
+					OdysseyLog: LogHook: Debug: Index not found: 0x0, Offset: 0xc17a88, IdaAddress [00007FF66F267A88] - Pleins de Free Memory
+					OdysseyLog: LogHook: Debug: Index not found: 0x1, Offset: 0xc3b978, IdaAddress [00007FF66F28B978] - Baka
+					OdysseyLog: LogHook: Debug: Index not found: 0x2, Offset: 0x2ccbb0, IdaAddress [00007FF66E91CBB0] - WITH_SERVER_CODE (return 1)
+					OdysseyLog: LogHook: Debug: Index not found: 0x3, Offset: 0xc26310, IdaAddress [00007FF66F276310] - Return un truc zebi jsp quoi
+					OdysseyLog: LogHook: Debug: Index not found: 0x4, Offset: 0x2ccbb0, IdaAddress [00007FF66E91CBB0] - WITH_SERVER_CODE (return 1)
+					OdysseyLog: LogHook: Debug: Index not found: 0x5, Offset: 0x3992a0, IdaAddress [00007FF66E9E92A0] - Return un truc zebi jsp quoi
+					OdysseyLog: LogHook: Debug: Index not found: 0x6, Offset: 0x3992a0, IdaAddress [00007FF66E9E92A0] - Return un truc zebi jsp quoi
+					OdysseyLog: LogHook: Debug: Index not found: 0x7, Offset: 0x11b3850, IdaAddress [00007FF66F803850] - Return un truc zebi jsp quoi
+					OdysseyLog: LogHook: Debug: Index not found: 0x8, Offset: 0xc24970, IdaAddress [00007FF66F274970] - GetCurrentWeapon
+					OdysseyLog: LogHook: Debug: Index not found: 0x9, Offset: 0xc24970, IdaAddress [00007FF66F274970] - GetCurrentWeapon
+					OdysseyLog: LogHook: Debug: Index not found: 0xa, Offset: 0xc269f0, IdaAddress [00007FF66F2769F0] - Return un truc zebi jsp quoi
+					OdysseyLog: LogHook: Debug: Index not found: 0xb, Offset: 0xc28ad0, IdaAddress [00007FF66F278AD0] - Return un truc zebi jsp quoi
+					OdysseyLog: LogHook: Debug: Index not found: 0xc, Offset: 0x11beef0, IdaAddress [00007FF66F80EEF0] - Peut être intéressent ressemble à RemoveInventoryItem
+					OdysseyLog: LogHook: Debug: Index not found: 0xd, Offset: 0x11d8640, IdaAddress [00007FF66F828640] - ModifyLoadedAmmo
+					OdysseyLog: LogHook: Debug: Index not found: 0xe, Offset: 0x11c60b0, IdaAddress [00007FF66F8160B0] - Un truc stw je crois
+					OdysseyLog: LogHook: Debug: Index not found: 0xf, Offset: 0x11c6010, IdaAddress [00007FF66F816010] - Un truc stw je crois
+					OdysseyLog: LogHook: Debug: Index not found: 0x10, Offset: 0xc28550, IdaAddress [00007FF66F278550] - La fonction est énorme
+					OdysseyLog: LogHook: Debug: Index not found: 0x11, Offset: 0x11a9910, IdaAddress [00007FF66F7F9910] - Prends 3 paramètres et fait un truc avec l'ItemDefinition et le FortItem
+					OdysseyLog: LogHook: Debug: Index not found: 0x12, Offset: 0x11a9c40, IdaAddress [00007FF66F7F9C40] - GetItemInstances
+					OdysseyLog: LogHook: Debug: Index not found: 0x13, Offset: 0x11ae410, IdaAddress [00007FF66F7FE410] - GetItemInstance
+					OdysseyLog: LogHook: Debug: Index not found: 0x14, Offset: 0x11d1cc0, IdaAddress [00007FF66F821CC0] - RemoveInventoryItem
+					OdysseyLog: LogHook: Debug: Index not found: 0x15, Offset: 0xc17ba0, IdaAddress [00007FF66F267BA0] - Pleins de Free Memory
+					OdysseyLog: LogHook: Debug: Index not found: 0x16, Offset: 0x2ccb70, IdaAddress [00007FF66E91CB70] - WITH_SERVER_CODE (nullsub)
+					OdysseyLog: LogHook: Debug: Index not found: 0x17, Offset: 0x1841460, IdaAddress [00007FF66FE91460] - jsp wallah
+					OdysseyLog: LogHook: Debug: Index not found: 0x18, Offset: 0x2cccd0, IdaAddress [00007FF66E91CCD0] - WITH_SERVER_CODE (return 0)
+					OdysseyLog: LogHook: Debug: Index not found: 0x19, Offset: 0x22cfbd0, IdaAddress [00007FF67091FBD0] - Return un truc zebi jsp quoi
+					OdysseyLog: LogHook: Debug: Index not found: 0x1a, Offset: 0x18403d0, IdaAddress [00007FF66FE903D0] - jsp wallah
+					OdysseyLog: LogHook: Debug: Index not found: 0x1b, Offset: 0x2ccb70, IdaAddress [00007FF66E91CB70] - WITH_SERVER_CODE (nullsub)
+					OdysseyLog: LogHook: Debug: Index not found: 0x1c, Offset: 0x2e1a30, IdaAddress [00007FF66E931A30] - jsp wallah
+					OdysseyLog: LogHook: Debug: Index not found: 0x1d, Offset: 0x22e46e0, IdaAddress [00007FF6709346E0] - Peut être intéressent à tester
+					OdysseyLog: LogHook: Debug: Index not found: 0x1e, Offset: 0x2ccb70, IdaAddress [00007FF66E91CB70] - WITH_SERVER_CODE (nullsub)
+					OdysseyLog: LogHook: Debug: Index not found: 0x1f, Offset: 0x2cccd0, IdaAddress [00007FF66E91CCD0] - WITH_SERVER_CODE (return 0)
+					OdysseyLog: LogHook: Debug: Index not found: 0x20, Offset: 0x2ccb70, IdaAddress [00007FF66E91CB70] - WITH_SERVER_CODE (nullsub)
+					OdysseyLog: LogHook: Debug: Index not found: 0x21, Offset: 0x3530d0, IdaAddress [00007FF66E9A30D0] - WITH_SERVER_CODE (nullsub)
+
+
+
+
+
+
+					HalalGS-19.10: LogHook: Info: Index not found: 0x0, Offset: 0x44d6728, IdaAddress [00007FF69AAA6728]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x1, Offset: 0x44d6770, IdaAddress [00007FF69AAA6770]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x2, Offset: 0x1409430, IdaAddress [00007FF6979D9430]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x3, Offset: 0xb31660, IdaAddress [00007FF697101660]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x4, Offset: 0xbe8550, IdaAddress [00007FF6971B8550]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x5, Offset: 0x1b7dcf0, IdaAddress [00007FF69814DCF0]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x6, Offset: 0x1409430, IdaAddress [00007FF6979D9430]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x7, Offset: 0x3f1e700, IdaAddress [00007FF69A4EE700]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x8, Offset: 0x3f1e6f0, IdaAddress [00007FF69A4EE6F0]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x9, Offset: 0x3f1e6f0, IdaAddress [00007FF69A4EE6F0]
+					HalalGS-19.10: LogHook: Info: Index not found: 0xa, Offset: 0x5ff7550, IdaAddress [00007FF69C5C7550]
+					HalalGS-19.10: LogHook: Info: Index not found: 0xb, Offset: 0x14d2a50, IdaAddress [00007FF697AA2A50]
+					HalalGS-19.10: LogHook: Info: Index not found: 0xc, Offset: 0x5ff6c60, IdaAddress [00007FF69C5C6C60]
+					HalalGS-19.10: LogHook: Info: Index not found: 0xd, Offset: 0x1d8f4cc, IdaAddress [00007FF69835F4CC]
+					HalalGS-19.10: LogHook: Info: Index not found: 0xe, Offset: 0x1297800, IdaAddress [00007FF697867800]
+					HalalGS-19.10: LogHook: Info: Index not found: 0xf, Offset: 0x5ffd830, IdaAddress [00007FF69C5CD830]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x10, Offset: 0x5ffd5ac, IdaAddress [00007FF69C5CD5AC]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x11, Offset: 0x5ffd654, IdaAddress [00007FF69C5CD654]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x12, Offset: 0x5ffd768, IdaAddress [00007FF69C5CD768]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x13, Offset: 0xbe8550, IdaAddress [00007FF6971B8550]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x14, Offset: 0xb31660, IdaAddress [00007FF697101660]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x15, Offset: 0x7622a11a0, IdaAddress [00007FFDF88711A0]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x16, Offset: 0x6784050, IdaAddress [00007FF69CD54050]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x17, Offset: 0xbe8550, IdaAddress [00007FF6971B8550]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x18, Offset: 0x5c27f04, IdaAddress [00007FF69C1F7F04]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x19, Offset: 0x6775f6c, IdaAddress [00007FF69CD45F6C]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x1a, Offset: 0x5fe92ec, IdaAddress [00007FF69C5B92EC]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x1b, Offset: 0x600a4d8, IdaAddress [00007FF69C5DA4D8]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x1c, Offset: 0x5ff07f8, IdaAddress [00007FF69C5C07F8]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x1d, Offset: 0x5ffd598, IdaAddress [00007FF69C5CD598]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x1e, Offset: 0x5ff7284, IdaAddress [00007FF69C5C7284]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x1f, Offset: 0x5fe930c, IdaAddress [00007FF69C5B930C]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x20, Offset: 0x600a4e4, IdaAddress [00007FF69C5DA4E4]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x21, Offset: 0x5ff55f8, IdaAddress [00007FF69C5C55F8]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x22, Offset: 0x5ff753c, IdaAddress [00007FF69C5C753C]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x23, Offset: 0x5fe8bf0, IdaAddress [00007FF69C5B8BF0]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x24, Offset: 0x600a3b8, IdaAddress [00007FF69C5DA3B8]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x25, Offset: 0x5ffd8b4, IdaAddress [00007FF69C5CD8B4]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x26, Offset: 0x6755c40, IdaAddress [00007FF69CD25C40]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x27, Offset: 0x64df0f8, IdaAddress [00007FF69CAAF0F8]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x28, Offset: 0x6798430, IdaAddress [00007FF69CD68430]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x29, Offset: 0x67a9968, IdaAddress [00007FF69CD79968]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x2a, Offset: 0x5ffcc98, IdaAddress [00007FF69C5CCC98]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x2b, Offset: 0x3f1cdf0, IdaAddress [00007FF69A4ECDF0]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x2c, Offset: 0x129a8d8, IdaAddress [00007FF69786A8D8]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x2d, Offset: 0x5ff56dc, IdaAddress [00007FF69C5C56DC]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x2e, Offset: 0x1f248ac, IdaAddress [00007FF6984F48AC]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x2f, Offset: 0x677da2c, IdaAddress [00007FF69CD4DA2C]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x30, Offset: 0x14d3994, IdaAddress [00007FF697AA3994]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x31, Offset: 0x5ffe708, IdaAddress [00007FF69C5CE708]
+					HalalGS-19.10: LogHook: Info: Index not found: 0x32, Offset: 0x676173c, IdaAddress [00007FF69CD3173C]
+				*/
+
+				// MinHook::FindIndexVTable((UObject*)IdkDefault, 0x0, 0x40);
 			}
 
 			if (GetAsyncKeyState(VK_F10) & 0x1)
 			{
-				UGameDataBR* GameDataBR = Globals::GetGameDataBR();
+				AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
 
-				for (int32 i = 0; i < GameDataBR->LootTierDataTablesBR.Num(); i++)
-				{
-					TSoftObjectPtr<UDataTable> LootTierDataTable = GameDataBR->LootTierDataTablesBR[i];
-					UDataTable* DataTable = Loots::LoadDataTable(LootTierDataTable);
+				if (!PlayerController)
+					return;
 
-					FN_LOG(LogHooks, Log, "%i - LootTierDataTables: %s", i, DataTable->GetFullName().c_str());
-				}
+				AFortPlayerPawn* PlayerPawn = PlayerController->GetPlayerPawn();
 
-				for (int32 i = 0; i < GameDataBR->LootPackageDataTablesBR.Num(); i++)
-				{
-					TSoftObjectPtr<UDataTable> LootPackageDataTable = GameDataBR->LootPackageDataTablesBR[i];
-					UDataTable* DataTable = Loots::LoadDataTable(LootPackageDataTable);
+				if (!PlayerPawn)
+					return;
 
-					FN_LOG(LogHooks, Log, "%i - LootPackageDataTable: %s", i, DataTable->GetFullName().c_str());
-				}
+				UWorld* World = PlayerController->GetWorld();
+
+				if (!World)
+					return;
+
+				UBlueprintGeneratedClass* BlueprintGeneratedClass = StaticFindObject<UBlueprintGeneratedClass>(L"/Game/Athena/Items/Weapons/Prototype/PetrolPump/BGA_Petrol_Pickup.BGA_Petrol_Pickup_C");
+				FVector SpawnLocation = PlayerPawn->K2_GetActorLocation();
+
+				World->SpawnActor(BlueprintGeneratedClass, &SpawnLocation);
+			}
+
+			if (GetAsyncKeyState(VK_F12) & 0x1)
+			{
+				AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
+
+				if (!PlayerController || !PlayerController->Pawn)
+					return;
+
+				/*UBlueprintGeneratedClass* BP_Tornado = StaticLoadObject<UBlueprintGeneratedClass>(L"/Superstorm/Tornado/BP_Tornado.BP_Tornado_C");
+
+				FN_LOG(LogHooks, Log, "BP_Tornado: %s", BP_Tornado->GetFullName().c_str());
+				FVector SpawnLocation = PlayerController->Pawn->K2_GetActorLocation();
+
+				AActor* Actor = PlayerController->GetWorld()->SpawnActor(BP_Tornado, &SpawnLocation);
+
+				FN_LOG(LogHooks, Log, "Actor: %s", Actor->GetFullName().c_str());*/
+
+				UBlueprintGeneratedClass* NPC_Pawn_ButterCake_Base = StaticLoadObject<UBlueprintGeneratedClass>(L"/ButterCake/Pawns/NPC_Pawn_ButterCake_Base.NPC_Pawn_ButterCake_Base_C");
+
+				FN_LOG(LogHooks, Log, "NPC_Pawn_ButterCake_Base: %s", NPC_Pawn_ButterCake_Base->GetFullName().c_str());
+				FVector SpawnLocation = PlayerController->Pawn->K2_GetActorLocation();
+
+				AActor* Actor = PlayerController->GetWorld()->SpawnActor(NPC_Pawn_ButterCake_Base, &SpawnLocation);
+
+				FN_LOG(LogHooks, Log, "Actor: %s", Actor->GetFullName().c_str());
+
+				UFortGameplayDataTrackerComponentManager;
+				UButterCakeUnstuckComponent;
+				AAIController;
 			}
 		}
 		else if (FunctionName.contains("OnWorldReady"))
@@ -662,7 +946,15 @@ namespace Hooks
 					GameStateAthena->OnRep_AdditionalPlaylistLevelsStreamed();
 				}
 
-				Functions::FillSafeZoneDurations();
+				Functions::InitializeDeployTraceForGroundDistance();
+				Functions::InitializeConsumableBGAs();
+				Functions::InitializeTreasureChests();
+				Functions::InitializeAmmoBoxs();
+
+				Functions::InitializeAI();
+				// Navigation::InitializeNavigation(Globals::GetWorld());
+
+				Functions::SpawnVehicles();
 
 				FN_LOG(LogHooks, Log, "OnWorldReady called!");
 				GameModeAthena->bWorldIsReady = true;
@@ -933,7 +1225,7 @@ namespace Hooks
 				!FunctionName.contains("OnHitCrack") &&
 				!FunctionName.contains("EvaluateGraphExposedInputs_ExecuteUbergraph_Fortnite_M_Avg_Player_AnimBlueprint_AnimGraphNode_"))
 			{
-				FN_LOG(Logs, Log, "Function: [%s]", Function->GetFullName().c_str());
+				FN_LOG(Logs, Log, "Function: [%s], Object: [%s]", Function->GetFullName().c_str(), Object->GetName().c_str());
 			}
 		}
 
@@ -951,7 +1243,7 @@ namespace Hooks
 	{
 		auto Params = (FortWeaponComponent_EquipTest*)Stack.Locals;
 
-		FN_LOG(Logs, Log, "OnEquip - Params->Weapon: %s", Params->Weapon->GetName().c_str());
+		// FN_LOG(Logs, Log, "OnEquip - Params->Weapon: %s", Params->Weapon->GetName().c_str());
 
 		ApplyAbilities(Params->Weapon);
 
@@ -963,11 +1255,225 @@ namespace Hooks
 	{
 		auto Params = (FortWeaponComponent_EquipTest*)Stack.Locals;
 
-		FN_LOG(Logs, Log, "OnUnEquip - Params->Weapon: %s", Params->Weapon->GetName().c_str());
+		// FN_LOG(Logs, Log, "OnUnEquip - Params->Weapon: %s", Params->Weapon->GetName().c_str());
 
 		RemoveAbilities(Params->Weapon);
 
 		OnUnEquipOG(WeaponComponent, Stack, Ret);
+	}
+
+	float UnwindDegrees(float Angle)
+	{
+		float Remainder = 0.0f;
+		UKismetMathLibrary::FMod(Angle, 360.0f, &Remainder);
+
+		if (Remainder < 0.0f)
+		{
+			Remainder += 360.0f;
+		}
+
+		if (Remainder > 180.0f)
+		{
+			Remainder -= 360.0f;
+		}
+
+		return Remainder;
+	}
+
+	void ServerMove(AFortPhysicsPawn* PhysicsPawn, FFrame& Stack, void* Ret)
+	{
+		FReplicatedPhysicsPawnState InState;
+
+		Stack.StepCompiledIn(&InState);
+
+		Stack.Code += Stack.Code != nullptr;
+
+		UPrimitiveComponent* RootComponent = Cast<UPrimitiveComponent>(PhysicsPawn->RootComponent);
+
+		if (RootComponent)
+		{
+			FRotator* (*Rotator)(FQuat* Quat, FRotator* Rotator) = decltype(Rotator)(0xdb3a68 + uintptr_t(GetModuleHandle(0)));
+
+			FRotator RealRotation;
+			Rotator(&InState.Rotation, &RealRotation);
+
+			RealRotation.Yaw = UnwindDegrees(RealRotation.Yaw);
+
+			RealRotation.Pitch = 0.0f;
+			RealRotation.Roll = 0.0f;
+
+			RootComponent->K2_SetWorldLocationAndRotation(InState.Translation, RealRotation, false, nullptr, true);
+			RootComponent->SetPhysicsLinearVelocity(InState.LinearVelocity, 0, FName(0));
+			RootComponent->SetPhysicsAngularVelocityInDegrees(InState.AngularVelocity, 0, FName(0));
+		}
+
+		// FN_LOG(Logs, Log, "ServerMove - PhysicsPawn: %s", PhysicsPawn->GetFullName().c_str());
+	}
+
+	bool (*AddItemToInventoryOwnerOG)(UFortItemEntryComponent* ItemEntryComponent, TScriptInterface<IFortInventoryOwnerInterface> InventoryOwner, bool bUseItemPickupAnalyticEvent);
+	bool AddItemToInventoryOwner(UFortItemEntryComponent* ItemEntryComponent, TScriptInterface<IFortInventoryOwnerInterface> InventoryOwner, bool bUseItemPickupAnalyticEvent)
+	{
+		bool bResult = AddItemToInventoryOwnerOG(ItemEntryComponent, InventoryOwner, bUseItemPickupAnalyticEvent);
+
+		if (InventoryOwner.GetInterface())
+		{
+			AFortPlayerController* PlayerController = AFortPlayerController::GetPlayerControllerFromInventoryOwner(InventoryOwner.GetInterfaceRef());
+			if (!PlayerController) return bResult;
+
+			return (Inventory::AddInventoryItem(PlayerController, ItemEntryComponent->OwnedItemEntry) != nullptr);
+		}
+
+		return bResult;
+	}
+
+	void PickupHeldObject(UFortHeldObjectComponent* HeldObjectComponent, FFrame& Stack, void* Ret)
+	{
+		AFortPlayerPawn* PlayerPawn;
+
+		Stack.StepCompiledIn(&PlayerPawn);
+
+		Stack.Code += Stack.Code != nullptr;
+
+		if (!PlayerPawn)
+			return;
+
+		AFortPlayerController* PlayerController = Cast<AFortPlayerController>(PlayerPawn->Controller);
+		if (!PlayerController) return;
+
+		TSoftObjectPtr<UFortWeaponItemDefinition> EquippedWeaponItemDefinition = HeldObjectComponent->EquippedWeaponItemDefinition;
+		UFortWeaponItemDefinition* WeaponItemDefinition = EquippedWeaponItemDefinition.Get();
+
+		if (!WeaponItemDefinition)
+		{
+			const FString& AssetPathName = UKismetStringLibrary::Conv_NameToString(EquippedWeaponItemDefinition.ObjectID.AssetPathName);
+			WeaponItemDefinition = StaticLoadObject<UFortWeaponItemDefinition>(AssetPathName.CStr());
+		}
+
+		if (!WeaponItemDefinition)
+			return;
+
+		FFortItemEntry ItemEntry;
+		Inventory::MakeItemEntry(&ItemEntry, WeaponItemDefinition, 1, -1, -1, -1.0f);
+
+		UFortWorldItem* WorldItem = Inventory::AddItem(PlayerController->WorldInventory, ItemEntry);
+
+		if (WorldItem)
+		{
+			bool bEquipWeapon = WeaponItemDefinition->EquipWeaponDefinition(WorldItem, PlayerController);
+
+			if (bEquipWeapon && PlayerPawn->CurrentWeapon)
+			{
+				TWeakObjectPtr<UFortWorldItem> WeakGrantedWeaponItem{};
+				WeakGrantedWeaponItem.ObjectIndex = WorldItem->Index;
+				WeakGrantedWeaponItem.ObjectSerialNumber = 0;
+
+				HeldObjectComponent->GrantedWeaponItem = WeakGrantedWeaponItem;
+
+				TWeakObjectPtr<AFortWeapon> WeakGrantedWeapon{};
+				WeakGrantedWeapon.ObjectIndex = PlayerPawn->CurrentWeapon->Index;
+				WeakGrantedWeapon.ObjectSerialNumber = 0;
+
+				HeldObjectComponent->GrantedWeapon = WeakGrantedWeapon;
+			}
+		}
+
+		HeldObjectComponent->HeldObjectState = EHeldObjectState::Held;
+
+		HeldObjectComponent->OwningPawn = PlayerPawn;
+		HeldObjectComponent->OnRep_OwningPawn(PlayerPawn);
+
+		FN_LOG(Logs, Log, "PickupHeldObject called - HeldObjectComponent: %s", HeldObjectComponent->GetFullName().c_str());
+	}
+
+	void DropHeldObject(UFortHeldObjectComponent* HeldObjectComponent, FFrame& Stack, void* Ret)
+	{
+		Stack.Code += Stack.Code != nullptr;
+
+		AFortPlayerPawn* PlayerPawn = HeldObjectComponent->OwningPawn;
+		if (!PlayerPawn) return;
+
+		AFortPlayerController* PlayerController = Cast<AFortPlayerController>(PlayerPawn->Controller);
+		if (!PlayerController) return;
+
+		UFortWorldItem* WorldItem = HeldObjectComponent->GrantedWeaponItem.Get();
+
+		if (WorldItem)
+		{
+			bool bRemoveItem = PlayerController->RemoveInventoryItem(WorldItem->ItemEntry.ItemGuid, -1, true, true);
+
+			if (bRemoveItem)
+			{
+				TWeakObjectPtr<UFortWorldItem> WeakGrantedWeaponItem{};
+				WeakGrantedWeaponItem.ObjectIndex = -1;
+				WeakGrantedWeaponItem.ObjectSerialNumber = 0;
+
+				HeldObjectComponent->GrantedWeaponItem = WeakGrantedWeaponItem;
+
+				TWeakObjectPtr<AFortWeapon> WeakGrantedWeapon{};
+				WeakGrantedWeapon.ObjectIndex = -1;
+				WeakGrantedWeapon.ObjectSerialNumber = 0;
+
+				HeldObjectComponent->GrantedWeapon = WeakGrantedWeapon;
+			}
+		}
+
+		HeldObjectComponent->HeldObjectState = EHeldObjectState::Dropped;
+
+		HeldObjectComponent->OwningPawn = nullptr;
+		HeldObjectComponent->OnRep_OwningPawn(nullptr);
+
+		FN_LOG(Logs, Log, "DropHeldObject called - HeldObjectComponent: %s", HeldObjectComponent->GetFullName().c_str());
+	}
+
+	void OnThrowComplete(UFortHeldObjectComponent* HeldObjectComponent, FFrame& Stack, void* Ret)
+	{
+		Stack.Code += Stack.Code != nullptr;
+
+		FN_LOG(Logs, Log, "OnThrowComplete called - HeldObjectComponent: %s", HeldObjectComponent->GetFullName().c_str());
+	}
+
+	void OnWeaponUnequipped(UFortHeldObjectComponent* HeldObjectComponent, FFrame& Stack, void* Ret)
+	{
+		Stack.Code += Stack.Code != nullptr;
+
+		FN_LOG(Logs, Log, "OnWeaponUnequipped called - HeldObjectComponent: %s", HeldObjectComponent->GetFullName().c_str());
+	}
+
+	void PlaceHeldObject(UFortHeldObjectComponent* HeldObjectComponent, FFrame& Stack, void* Ret)
+	{
+		Stack.Code += Stack.Code != nullptr;
+
+		FN_LOG(Logs, Log, "PlaceHeldObject called - HeldObjectComponent: %s", HeldObjectComponent->GetFullName().c_str());
+	}
+
+	void RemoveHeldObjectFromVehicle(UFortHeldObjectComponent* HeldObjectComponent, FFrame& Stack, void* Ret)
+	{
+		Stack.Code += Stack.Code != nullptr;
+
+		FN_LOG(Logs, Log, "RemoveHeldObjectFromVehicle called - HeldObjectComponent: %s", HeldObjectComponent->GetFullName().c_str());
+	}
+
+	void DropObjectHeldInVehicle(UFortHeldObjectComponent* HeldObjectComponent, FFrame& Stack, void* Ret)
+	{
+		Stack.Code += Stack.Code != nullptr;
+
+		FN_LOG(Logs, Log, "DropObjectHeldInVehicle called - HeldObjectComponent: %s", HeldObjectComponent->GetFullName().c_str());
+	}
+
+
+	void StartConversation(UFortNonPlayerConversationParticipantComponent* NonPlayerConversationParticipantComponent, FFrame& Stack, void* Ret)
+	{
+		FGameplayTag InConversationEntryTag;
+		AActor* Instigator; 
+		AActor* Target;
+
+		Stack.StepCompiledIn(&InConversationEntryTag);
+		Stack.StepCompiledIn(&Instigator);
+		Stack.StepCompiledIn(&Target);
+
+		Stack.Code += Stack.Code != nullptr;
+
+		FN_LOG(Logs, Log, "StartConversation called - NonPlayerConversationParticipantComponent: %s", NonPlayerConversationParticipantComponent->GetFullName().c_str());
 	}
 
 	void InitHook()
@@ -1003,6 +1509,15 @@ namespace Hooks
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0xd6bae4), Ret, nullptr);
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0xd6bae4));
 
+		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x18b3df0), Ret, nullptr); // RequestExitWithStatus
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x18b3df0));
+
+		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x63c7898), Ret, nullptr); // RequestExit
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x63c7898));
+
+		//MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0xf951e8), Ret, nullptr); // Showing LoadingScreen
+		//MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0xf951e8));
+
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + Offsets::ProcessEvent), ProcessEvent, (LPVOID*)(&ProcessEventOG));
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + Offsets::ProcessEvent));
 
@@ -1012,6 +1527,50 @@ namespace Hooks
 		MinHook::HookFunctionExec(OnEquipFunc, OnEquip, (LPVOID*)(&OnEquipOG));
 		UFunction* OnUnEquipFunc = FortWeaponComponentClass->GetFunction("FortWeaponComponent", "OnUnEquip");
 		MinHook::HookFunctionExec(OnUnEquipFunc, OnUnEquip, (LPVOID*)(&OnUnEquipOG));
+
+		UClass* FortAthenaVehicleClass = AFortPhysicsPawn::StaticClass();
+
+		UFunction* ServerMoveFunc = FortAthenaVehicleClass->GetFunction("FortPhysicsPawn", "ServerMove");
+		MinHook::HookFunctionExec(ServerMoveFunc, ServerMove, nullptr);
+
+		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x625f128), AddItemToInventoryOwner, (LPVOID*)(&AddItemToInventoryOwnerOG));
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x625f128));
+
+		UClass* FortHeldObjectComponentClass = UFortHeldObjectComponent::StaticClass();
+
+		UFunction* PickupHeldObjectFunc = FortHeldObjectComponentClass->GetFunction("FortHeldObjectComponent", "PickupHeldObject");
+		MinHook::HookFunctionExec(PickupHeldObjectFunc, PickupHeldObject, nullptr);
+		UFunction* DropHeldObjectFunc = FortHeldObjectComponentClass->GetFunction("FortHeldObjectComponent", "DropHeldObject");
+		MinHook::HookFunctionExec(DropHeldObjectFunc, DropHeldObject, nullptr);
+
+		UFunction* OnThrowCompleteFunc = FortHeldObjectComponentClass->GetFunction("FortHeldObjectComponent", "OnThrowComplete");
+		MinHook::HookFunctionExec(OnThrowCompleteFunc, OnThrowComplete, nullptr);
+		UFunction* OnWeaponUnequippedFunc = FortHeldObjectComponentClass->GetFunction("FortHeldObjectComponent", "OnWeaponUnequipped");
+		MinHook::HookFunctionExec(OnWeaponUnequippedFunc, OnWeaponUnequipped, nullptr);
+		UFunction* PlaceHeldObjectFunc = FortHeldObjectComponentClass->GetFunction("FortHeldObjectComponent", "PlaceHeldObject");
+		MinHook::HookFunctionExec(PlaceHeldObjectFunc, PlaceHeldObject, nullptr);
+		UFunction* RemoveHeldObjectFromVehicleFunc = FortHeldObjectComponentClass->GetFunction("FortHeldObjectComponent", "RemoveHeldObjectFromVehicle");
+		MinHook::HookFunctionExec(RemoveHeldObjectFromVehicleFunc, RemoveHeldObjectFromVehicle, nullptr);
+		UFunction* DropObjectHeldInVehicleFunc = FortHeldObjectComponentClass->GetFunction("FortHeldObjectComponent", "DropObjectHeldInVehicle");
+		MinHook::HookFunctionExec(DropObjectHeldInVehicleFunc, DropObjectHeldInVehicle, nullptr);
+
+		UClass* FortNonPlayerConversationParticipantComponentClass = UFortNonPlayerConversationParticipantComponent::StaticClass();
+
+		UFunction* StartConversationFunc = FortNonPlayerConversationParticipantComponentClass->GetFunction("FortNonPlayerConversationParticipantComponent", "StartConversation");
+		MinHook::HookFunctionExec(StartConversationFunc, StartConversation, nullptr);
+
+		/*MinHook::HookVTable(FortAthenaVehicleDefault, 0x810 / 8, ServerMove, nullptr, "AFortPhysicsPawn::ServerMove");
+		MinHook::HookVTable(FortAthenaVehicleDefault, 0x808 / 8, ServerMoveReliable, nullptr, "AFortPhysicsPawn::ServerMoveReliable");
+		MinHook::HookVTable(FortAthenaVehicleDefault, 0x800 / 8, ServerUpdateStateSync, nullptr, "AFortPhysicsPawn::ServerUpdateStateSync");*/
+
+		/*UFunction* SpawnVehicleFunc = FortAthenaVehicleSpawnerClass->GetFunction("FortAthenaVehicleSpawner", "SpawnVehicle");
+		MinHook::HookFunctionExec(SpawnVehicleFunc, SpawnVehicle, nullptr);
+		UFunction* SpawnVehicleWithConstructionFunc = FortAthenaVehicleSpawnerClass->GetFunction("FortAthenaVehicleSpawner", "SpawnVehicleWithConstruction");
+		MinHook::HookFunctionExec(SpawnVehicleWithConstructionFunc, SpawnVehicleWithConstruction, nullptr);*/
+
+		ABuildingProp;
+
+		// FortniteGame/Content/Athena/Items/EnvironmentalItems/ExplosiveProps/Athena_BuildingProp_Explosive.uasset
 
 		FN_LOG(LogInit, Log, "InitHook Success!");
 	}

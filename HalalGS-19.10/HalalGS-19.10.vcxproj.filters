@@ -37,6 +37,15 @@
     <ClCompile Include="SDK\OnlineSubsystemUtils_functions.cpp">
       <Filter>SDK</Filter>
     </ClCompile>
+    <ClCompile Include="SDK\NavigationSystem_functions.cpp">
+      <Filter>SDK</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\AthenaFunctionLibrary_functions.cpp">
+      <Filter>SDK</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\CommonConversationRuntime_functions.cpp">
+      <Filter>SDK</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="util.h" />
@@ -96,6 +105,9 @@
     </ClInclude>
     <ClInclude Include="Globals\DecoTool.h">
       <Filter>Headers\Globals</Filter>
+    </ClInclude>
+    <ClInclude Include="Functions\Navigation.h">
+      <Filter>Headers\Functions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
