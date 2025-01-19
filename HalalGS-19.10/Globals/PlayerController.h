@@ -9,6 +9,51 @@ namespace PlayerController
 	void (*ServerReturnToMainMenuOG)(AFortPlayerController* PlayerController);
 	void (*GetPlayerViewPointOG)(APlayerController* PlayerController, FVector& out_Location, FRotator& out_Rotation);
 
+	void ServerClientIsReadyToRespawn(AFortPlayerControllerAthena* PlayerControllerAthena)
+	{
+		AFortPlayerStateAthena* PlayerStateAthena = Cast<AFortPlayerStateAthena>(PlayerControllerAthena->PlayerState);
+		AFortGameModeAthena* GameModeAthena = Globals::GetGameMode();
+
+		if (!PlayerStateAthena || !GameModeAthena) 
+			return;
+
+		FN_LOG(LogPlayerController, Log, "[AFortPlayerControllerAthena::ServerClientIsReadyToRespawn] called!");
+
+		FFortRespawnData* RespawnData = &PlayerStateAthena->RespawnData;
+
+		if (RespawnData->bServerIsReady && RespawnData->bRespawnDataAvailable)
+		{
+			const FVector& RespawnLocation = RespawnData->RespawnLocation;
+			const FRotator& RespawnRotation = RespawnData->RespawnRotation;
+
+			FTransform SpawnTransform = UKismetMathLibrary::MakeTransform(RespawnLocation, RespawnRotation, FVector({ 1, 1, 1 }));
+
+			AFortPlayerPawn* PlayerPawn = Cast<AFortPlayerPawn>(GameModeAthena->SpawnDefaultPawnAtTransform(PlayerControllerAthena, SpawnTransform));
+
+			if (!PlayerPawn)
+			{
+				FN_LOG(LogPlayerController, Error, "[AFortPlayerControllerAthena::ServerClientIsReadyToRespawn] Failed to spawn PlayerPawn!");
+				return;
+			}
+
+			PlayerPawn->Owner = PlayerControllerAthena;
+			PlayerPawn->OnRep_Owner();
+
+			PlayerControllerAthena->Pawn = PlayerPawn;
+			PlayerControllerAthena->OnRep_Pawn();
+			PlayerControllerAthena->Possess(PlayerPawn);
+
+			PlayerPawn->SetMaxHealth(100);
+			PlayerPawn->SetHealth(100);
+			PlayerPawn->SetMaxShield(100);
+			PlayerPawn->SetShield(0);
+
+			PlayerControllerAthena->SetControlRotation(RespawnRotation);
+
+			RespawnData->bClientIsReady = true;
+		}
+	}
+
 	void ClientOnPawnDied(AFortPlayerControllerZone* PlayerControllerZone, const FFortPlayerDeathReport& DeathReport)
 	{
 		AFortPlayerPawnAthena* PlayerPawnAthena = Cast<AFortPlayerPawnAthena>(PlayerControllerZone->MyFortPawn);
@@ -2305,6 +2350,8 @@ namespace PlayerController
 		UFortControllerComponent_Aircraft* FortControllerComponent_AircraftDefault = UFortControllerComponent_Aircraft::GetDefaultObj();
 		UFortControllerComponent_Interaction* FortControllerComponent_InteractionDefault = UFortControllerComponent_Interaction::GetDefaultObj();
 		UObject* InventoryOwnerDefault = (UObject*)FortPlayerControllerAthenaDefault->GetInventoryOwner();
+
+		MinHook::HookVTable(FortPlayerControllerAthenaDefault, 0x2A98 / 8, ServerClientIsReadyToRespawn, nullptr, "AFortPlayerControllerAthena::ServerClientIsReadyToRespawn");
 
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x6c26888), ClientOnPawnDied, (LPVOID*)(&ClientOnPawnDiedOG));
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x6c26888));

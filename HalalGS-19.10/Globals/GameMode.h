@@ -24,7 +24,8 @@ namespace GameMode
 
 		if (GameStateAthena && !GameStateAthena->CurrentPlaylistInfo.BasePlaylist)
 		{
-			UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo");
+			// UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo");
+			UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/BattleLab/Playlist_BattleLab.Playlist_BattleLab");
 			if (!PlaylistAthena) return false;
 
 			GameStateAthena->CurrentPlaylistInfo.BasePlaylist = PlaylistAthena;

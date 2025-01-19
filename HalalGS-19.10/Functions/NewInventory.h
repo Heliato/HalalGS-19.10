@@ -243,6 +243,16 @@ namespace Inventory
 
 		Inventory->AddWorldItem(WorldItem);
 
+		if (WorldItemEntry && PlayerController)
+		{
+			UFortGadgetItemDefinition* GadgetItemDefinition = Cast<UFortGadgetItemDefinition>(WorldItemEntry->ItemDefinition);
+
+			if (GadgetItemDefinition)
+			{
+				GadgetItemDefinition->ApplyGadgetData(PlayerController->GetInventoryOwner(), WorldItem);
+			}
+		}
+
 		return WorldItem;
 	}
 

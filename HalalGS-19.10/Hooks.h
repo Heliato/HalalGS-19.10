@@ -54,8 +54,11 @@ namespace Hooks
 		APawn* Instigator = Weapon->Instigator;
 		if (!Instigator) return;
 
+		AFortPlayerController* PlayerController = Cast<AFortPlayerController>(Instigator->Controller);
 		AFortPlayerState* PlayerState = Cast<AFortPlayerState>(Instigator->PlayerState);
-		if (!PlayerState) return;
+
+		if (!PlayerController || !PlayerState)
+			return;
 
 		UFortAbilitySystemComponent* AbilitySystemComponent = PlayerState->AbilitySystemComponent;
 		if (!AbilitySystemComponent) return;
@@ -146,6 +149,19 @@ namespace Hooks
 					AbilitySystemComponent->GiveAbility(&Handle, GameplayAbilitySpec);
 				
 					Weapon->EquippedAbilityHandles.Add(Handle);
+				}
+			}
+
+			UFortAbilitySet* AbilitySet = Functions::LoadAbilitySet(Weapon->WeaponData->EquippedAbilitySet);
+
+			if (AbilitySet)
+			{
+				UFortWorldItem* WorldItem = Cast<UFortWorldItem>(PlayerController->BP_GetInventoryItemWithGuid(Weapon->ItemEntryGuid));
+
+				if (WorldItem)
+				{
+					bool (*ApplyItemAbilitySet)(void* InventoryOwner, UFortAbilitySet * AbilitySet, UFortWorldItem * WorldItem) = decltype(ApplyItemAbilitySet)(0x6798430 + uintptr_t(GetModuleHandle(0)));
+					ApplyItemAbilitySet(PlayerController->GetInventoryOwner(), AbilitySet, WorldItem);
 				}
 			}
 
@@ -273,8 +289,11 @@ namespace Hooks
 		APawn* Instigator = Weapon->Instigator;
 		if (!Instigator) return;
 
+		AFortPlayerController* PlayerController = Cast<AFortPlayerController>(Instigator->Controller);
 		AFortPlayerState* PlayerState = Cast<AFortPlayerState>(Instigator->PlayerState);
-		if (!PlayerState) return;
+
+		if (!PlayerController || !PlayerState)
+			return;
 
 		UFortAbilitySystemComponent* AbilitySystemComponent = PlayerState->AbilitySystemComponent;
 		if (!AbilitySystemComponent) return;
@@ -319,6 +338,19 @@ namespace Hooks
 			}
 
 			Weapon->EquippedAbilityHandles.Free();
+
+			UFortAbilitySet* AbilitySet = Functions::LoadAbilitySet(Weapon->WeaponData->EquippedAbilitySet);
+
+			if (AbilitySet)
+			{
+				UFortWorldItem* WorldItem = Cast<UFortWorldItem>(PlayerController->BP_GetInventoryItemWithGuid(Weapon->ItemEntryGuid));
+
+				if (WorldItem)
+				{
+					bool (*RemoveItemAbilitySet)(void* InventoryOwner, UFortAbilitySet* AbilitySet, UFortWorldItem* WorldItem) = decltype(RemoveItemAbilitySet)(0x67a9968 + uintptr_t(GetModuleHandle(0)));
+					RemoveItemAbilitySet(PlayerController->GetInventoryOwner(), AbilitySet, WorldItem);
+				}
+			}
 
 			for (int32 i = 0; i < Weapon->EquippedAbilitySetHandles.Num(); i++)
 			{
@@ -458,9 +490,9 @@ namespace Hooks
 
 				AFortDagwoodVehicle;
 
-				// FortniteGame/Content/Athena/Items/Weapons/Prototype/WID_FringePlank_Athena_Prototype.uasset
+				// 
 
-				auto TID_ContextTrap_Athena = StaticFindObject<UFortWeaponRangedItemDefinition>(L"/Game/Athena/Items/Weapons/Prototype/WID_FringePlank_Athena_Prototype.WID_FringePlank_Athena_Prototype");
+				auto TID_ContextTrap_Athena = StaticFindObject<UAthenaGadgetItemDefinition>(L"/Game/Athena/Items/Gameplay/Backpacks/GliderItem/Athena_Glider_Item.Athena_Glider_Item");
 				// auto TID_ContextTrap_Athena = StaticFindObject<UFortContextTrapItemDefinition>(L"/ParallelGameplay/Items/WestSausage/WID_WestSausage_Parallel_L_M.WID_WestSausage_Parallel_L_M");
 				// auto TID_ContextTrap_Athena = StaticFindObject<UFortContextTrapItemDefinition>(L"/Game/Athena/Items/Traps/TID_ContextTrap_Athena.TID_ContextTrap_Athena");
 				// auto TID_ContextTrap_Athena = StaticFindObject<UFortWeaponRangedItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Hook_Gun_VR_Ore_T03.WID_Hook_Gun_VR_Ore_T03");
@@ -1473,7 +1505,35 @@ namespace Hooks
 
 		Stack.Code += Stack.Code != nullptr;
 
+		AFortGameModeAthena;
+
 		FN_LOG(Logs, Log, "StartConversation called - NonPlayerConversationParticipantComponent: %s", NonPlayerConversationParticipantComponent->GetFullName().c_str());
+	}
+
+	void (*sub_7FF69C56C8D0OG)(__int64 a1, __int64 a2, int a3, int a4, FString& ErrorMessage);
+	void sub_7FF69C56C8D0(__int64 a1, __int64 a2, int a3, int a4, FString& ErrorMessage)
+	{
+		/*UFortPlaylistAthena* PlaylistAthena = Globals::GetPlaylist();
+
+		if (!PlaylistAthena) 
+			return sub_7FF69C56C8D0OG(a1, a2, a3, a4, a5);
+
+		FN_LOG(Logs, Log, "bAllowJoinInProgress: %i", PlaylistAthena->bAllowJoinInProgress);
+
+		if (PlaylistAthena->bAllowJoinInProgress)
+		{
+			bool bOldGameStart = (bool)(__int64(a1) + 0xFB8);
+
+			(*(bool*)(__int64(a1) + 0xFB8)) = false;
+
+			sub_7FF69C56C8D0OG(a1, a2, a3, a4, a5);
+
+			(*(bool*)(__int64(a1) + 0xFB8)) = bOldGameStart;
+		}*/
+
+		FN_LOG(Logs, Log, "J'aime pas trop les noirs perso");
+
+		// sub_7FF69C56C8D0OG(a1, a2, a3, a4, ErrorMessage);
 	}
 
 	void InitHook()
@@ -1518,6 +1578,9 @@ namespace Hooks
 		//MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0xf951e8), Ret, nullptr); // Showing LoadingScreen
 		//MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0xf951e8));
 
+		//MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5f985f8), Ret, nullptr); // Test Join in progress
+		//MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5f985f8));
+
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + Offsets::ProcessEvent), ProcessEvent, (LPVOID*)(&ProcessEventOG));
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + Offsets::ProcessEvent));
 
@@ -1558,6 +1621,9 @@ namespace Hooks
 
 		UFunction* StartConversationFunc = FortNonPlayerConversationParticipantComponentClass->GetFunction("FortNonPlayerConversationParticipantComponent", "StartConversation");
 		MinHook::HookFunctionExec(StartConversationFunc, StartConversation, nullptr);
+
+		/*MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5f9c8d0), sub_7FF69C56C8D0, (LPVOID*)(&sub_7FF69C56C8D0OG));
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5f9c8d0));*/
 
 		/*MinHook::HookVTable(FortAthenaVehicleDefault, 0x810 / 8, ServerMove, nullptr, "AFortPhysicsPawn::ServerMove");
 		MinHook::HookVTable(FortAthenaVehicleDefault, 0x808 / 8, ServerMoveReliable, nullptr, "AFortPhysicsPawn::ServerMoveReliable");

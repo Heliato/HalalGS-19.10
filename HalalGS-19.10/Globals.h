@@ -15,7 +15,7 @@
 // #define SIPHON
 // #define QUESTS
 // #define LATEGAME
-#define FLOORLOOT
+// #define FLOORLOOT
 #define BOTS
 
 template<typename T = UObject>
