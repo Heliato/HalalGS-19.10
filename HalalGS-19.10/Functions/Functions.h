@@ -568,6 +568,71 @@ namespace Functions
 		return AllItemsWithTag;
 	}
 
+	void ApplySiphonEffect(AFortPlayerState* PlayerState)
+	{
+		if (PlayerState)
+		{
+			UFortAbilitySystemComponent* AbilitySystemComponent = PlayerState->AbilitySystemComponent;
+
+			if (AbilitySystemComponent)
+			{
+				FGameplayTag GameplayTag = FGameplayTag();
+				GameplayTag.TagName = UKismetStringLibrary::Conv_StringToName(L"GameplayCue.Shield.PotionConsumed");
+
+				AbilitySystemComponent->NetMulticast_InvokeGameplayCueAdded(GameplayTag, FPredictionKey(), FGameplayEffectContextHandle());
+				AbilitySystemComponent->NetMulticast_InvokeGameplayCueExecuted(GameplayTag, FPredictionKey(), FGameplayEffectContextHandle());
+			}
+		}
+	}
+
+	void GiveSiphonBonus(AFortPlayerController* PlayerController, AFortPawn* Pawn, bool bGiveBuildingResource = true, bool bHealPlayer = true)
+	{
+		if (PlayerController)
+		{
+			if (bGiveBuildingResource)
+			{
+				UFortKismetLibrary::K2_GiveBuildingResource(PlayerController, EFortResourceType::Wood, 50);
+				UFortKismetLibrary::K2_GiveBuildingResource(PlayerController, EFortResourceType::Stone, 50);
+				UFortKismetLibrary::K2_GiveBuildingResource(PlayerController, EFortResourceType::Metal, 50);
+			}
+
+			if (bHealPlayer && Pawn)
+			{
+				float MaxHealth = Pawn->GetMaxHealth();
+				float MaxShield = Pawn->GetMaxShield();
+
+				float Health = Pawn->GetHealth();
+				float Shield = Pawn->GetShield();
+
+				float SiphonAmount = 200.0f;
+				float RemainingSiphonAmount = SiphonAmount;
+
+				if (Health < MaxHealth)
+				{
+					float NewHealth = std::clamp(Health + SiphonAmount, 0.0f, MaxHealth);
+
+					Pawn->SetHealth(NewHealth);
+
+					RemainingSiphonAmount -= (NewHealth - Health);
+				}
+
+				if (RemainingSiphonAmount > 0.0f)
+				{
+					float NewShield = std::clamp(Shield + RemainingSiphonAmount, 0.0f, MaxShield);
+
+					Pawn->SetShield(NewShield);
+				}
+			}
+
+			AFortPlayerState* PlayerState = Cast<AFortPlayerState>(PlayerController->PlayerState);
+
+			if (PlayerState)
+			{
+				ApplySiphonEffect(PlayerState);
+			}
+		}
+	}
+
 	void InitFunctions()
 	{
 		FN_LOG(LogInit, Log, "InitFunctions Success!");

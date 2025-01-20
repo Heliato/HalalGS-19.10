@@ -12,7 +12,7 @@
 
 #define CHEATS
 // #define DEBUGS
-// #define SIPHON
+#define SIPHON
 // #define QUESTS
 // #define LATEGAME
 // #define FLOORLOOT

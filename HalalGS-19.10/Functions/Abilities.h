@@ -2,7 +2,7 @@
 
 namespace Abilities
 {
-	FGameplayAbilitySpec* FindAbilitySpecFromHandle(UAbilitySystemComponent* AbilitySystemComponent, FGameplayAbilitySpecHandle& Ability)
+	FGameplayAbilitySpec* FindAbilitySpecFromHandle(UAbilitySystemComponent* AbilitySystemComponent, const FGameplayAbilitySpecHandle& Ability)
 	{
 		FGameplayAbilitySpec* Spec = nullptr;
 
@@ -137,11 +137,53 @@ namespace Abilities
 		AbilitySystemComponent->ActivatableAbilities.MarkItemDirty(*Spec);
 	}
 
+	FGameplayAbilitySpecHandle (*GiveAbilityOG)(UAbilitySystemComponent* AbilitySystemComponent, FGameplayAbilitySpecHandle* Handle, FGameplayAbilitySpec Spec);
+	FGameplayAbilitySpecHandle GiveAbility(UAbilitySystemComponent* AbilitySystemComponent, FGameplayAbilitySpecHandle* Handle, FGameplayAbilitySpec Spec)
+	{
+		FN_LOG(LogMinHook, Log, "AbilitySystemComponent: %s", AbilitySystemComponent->GetFullName().c_str());
+		FN_LOG(LogMinHook, Log, "Spec.Ability: %s", Spec.Ability->GetFullName().c_str());
+		FN_LOG(LogMinHook, Log, "Spec.Level: %i", Spec.Level);
+		FN_LOG(LogMinHook, Log, "Spec.InputID: %i", Spec.InputID);
+
+		uintptr_t Offset = uintptr_t(_ReturnAddress()) - InSDKUtils::GetImageBase();
+		uintptr_t IdaAddress = Offset + 0x7FF6965D0000ULL;
+
+		FN_LOG(LogMinHook, Log, "UAbilitySystemComponent::GiveAbility - called in Offset [0x%llx], IdaAddress [%p]", (unsigned long long)Offset, IdaAddress);
+
+		return GiveAbilityOG(AbilitySystemComponent, Handle, Spec);
+	}
+
+	void (*ClearAbilityOG)(UAbilitySystemComponent* AbilitySystemComponent, const FGameplayAbilitySpecHandle& Handle);
+	void ClearAbility(UAbilitySystemComponent* AbilitySystemComponent, const FGameplayAbilitySpecHandle& Handle)
+	{
+		FGameplayAbilitySpec* Spec = Abilities::FindAbilitySpecFromHandle(AbilitySystemComponent, Handle);
+
+		if (Spec)
+		{
+			FN_LOG(LogMinHook, Log, "AbilitySystemComponent: %s", AbilitySystemComponent->GetFullName().c_str());
+			FN_LOG(LogMinHook, Log, "Spec.Ability: %s", Spec->Ability->GetFullName().c_str());
+			FN_LOG(LogMinHook, Log, "Spec.Level: %i", Spec->Level);
+			FN_LOG(LogMinHook, Log, "Spec.InputID: %i", Spec->InputID);
+
+			uintptr_t Offset = uintptr_t(_ReturnAddress()) - InSDKUtils::GetImageBase();
+			uintptr_t IdaAddress = Offset + 0x7FF6965D0000ULL;
+
+			FN_LOG(LogMinHook, Log, "UAbilitySystemComponent::ClearAbility - called in Offset [0x%llx], IdaAddress [%p]", (unsigned long long)Offset, IdaAddress);
+		}
+
+		ClearAbilityOG(AbilitySystemComponent, Handle);
+	}
+
 	void InitAbilities()
 	{
 		UFortAbilitySystemComponentAthena* AbilitySystemComponentDefault = UFortAbilitySystemComponentAthena::GetDefaultObj();
 
 		MinHook::HookVTable(AbilitySystemComponentDefault, 0x840 / 8, InternalServerTryActiveAbility, nullptr, "UAbilitySystemComponent::InternalServerTryActiveAbility");
+
+		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x1210B88), GiveAbility, (LPVOID*)(&GiveAbilityOG));
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x1210B88));
+		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x4dfd34c), ClearAbility, (LPVOID*)(&ClearAbilityOG));
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x4dfd34c));
 
 		FN_LOG(LogInit, Log, "InitAbilities Success!");
 	}

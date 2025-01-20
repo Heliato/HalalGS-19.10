@@ -271,6 +271,13 @@ namespace Inventory
 		if (!WorldItem)
 			return;
 
+		UFortGadgetItemDefinition* GadgetItemDefinition = Cast<UFortGadgetItemDefinition>(WorldItem->ItemEntry.ItemDefinition);
+
+		if (GadgetItemDefinition)
+		{
+			GadgetItemDefinition->RemoveGadgetData(PlayerController->GetInventoryOwner(), WorldItem);
+		}
+
 		Inventory->RecentlyRemoved.Add(WorldItem);
 
 		for (int32 i = 0; i < Inventory->Inventory.ItemInstances.Num(); i++)

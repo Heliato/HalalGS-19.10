@@ -46,7 +46,7 @@ namespace PlayerController
 			PlayerPawn->SetMaxHealth(100);
 			PlayerPawn->SetHealth(100);
 			PlayerPawn->SetMaxShield(100);
-			PlayerPawn->SetShield(0);
+			PlayerPawn->SetShield(100);
 
 			PlayerControllerAthena->SetControlRotation(RespawnRotation);
 
@@ -93,6 +93,13 @@ namespace PlayerController
 			KillerPlayerState->OnRep_Kills();
 
 			KillerPlayerState->ClientReportKill(PlayerStateAthena);
+
+#ifdef SIPHON
+			AFortPlayerControllerAthena* KillerPlayerController = Cast<AFortPlayerControllerAthena>(KillerPlayerState->Owner);
+
+			if (KillerPlayerController)
+				Functions::GiveSiphonBonus(KillerPlayerController, KillerPawn);
+#endif // SIPHON
 		}
 
 		AFortPlayerControllerAthena* PlayerControllerAthena = Cast<AFortPlayerControllerAthena>(PlayerControllerZone);

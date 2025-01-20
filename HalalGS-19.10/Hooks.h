@@ -492,7 +492,7 @@ namespace Hooks
 
 				// 
 
-				auto TID_ContextTrap_Athena = StaticFindObject<UAthenaGadgetItemDefinition>(L"/Game/Athena/Items/Gameplay/Backpacks/GliderItem/Athena_Glider_Item.Athena_Glider_Item");
+				auto TID_ContextTrap_Athena = StaticFindObject<UFortWeaponRangedItemDefinition>(L"/Game/Athena/Items/Consumables/WitchBroom/WID_Athena_WitchBroom.WID_Athena_WitchBroom");
 				// auto TID_ContextTrap_Athena = StaticFindObject<UFortContextTrapItemDefinition>(L"/ParallelGameplay/Items/WestSausage/WID_WestSausage_Parallel_L_M.WID_WestSausage_Parallel_L_M");
 				// auto TID_ContextTrap_Athena = StaticFindObject<UFortContextTrapItemDefinition>(L"/Game/Athena/Items/Traps/TID_ContextTrap_Athena.TID_ContextTrap_Athena");
 				// auto TID_ContextTrap_Athena = StaticFindObject<UFortWeaponRangedItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Hook_Gun_VR_Ore_T03.WID_Hook_Gun_VR_Ore_T03");
@@ -897,7 +897,10 @@ namespace Hooks
 
 				FN_LOG(LogHooks, Log, "Actor: %s", Actor->GetFullName().c_str());*/
 
-				UBlueprintGeneratedClass* NPC_Pawn_ButterCake_Base = StaticLoadObject<UBlueprintGeneratedClass>(L"/ButterCake/Pawns/NPC_Pawn_ButterCake_Base.NPC_Pawn_ButterCake_Base_C");
+				// /Game/Athena/DrivableVehicles/Mech/TestMechVehicle.TestMechVehicle_C
+
+				//UBlueprintGeneratedClass* NPC_Pawn_ButterCake_Base = StaticLoadObject<UBlueprintGeneratedClass>(L"/ButterCake/Pawns/NPC_Pawn_ButterCake_Base.NPC_Pawn_ButterCake_Base_C");
+				UBlueprintGeneratedClass* NPC_Pawn_ButterCake_Base = StaticLoadObject<UBlueprintGeneratedClass>(L"/Game/Athena/DrivableVehicles/Mech/TestMechVehicle.TestMechVehicle_C");
 
 				FN_LOG(LogHooks, Log, "NPC_Pawn_ButterCake_Base: %s", NPC_Pawn_ButterCake_Base->GetFullName().c_str());
 				FVector SpawnLocation = PlayerController->Pawn->K2_GetActorLocation();
@@ -1510,32 +1513,6 @@ namespace Hooks
 		FN_LOG(Logs, Log, "StartConversation called - NonPlayerConversationParticipantComponent: %s", NonPlayerConversationParticipantComponent->GetFullName().c_str());
 	}
 
-	void (*sub_7FF69C56C8D0OG)(__int64 a1, __int64 a2, int a3, int a4, FString& ErrorMessage);
-	void sub_7FF69C56C8D0(__int64 a1, __int64 a2, int a3, int a4, FString& ErrorMessage)
-	{
-		/*UFortPlaylistAthena* PlaylistAthena = Globals::GetPlaylist();
-
-		if (!PlaylistAthena) 
-			return sub_7FF69C56C8D0OG(a1, a2, a3, a4, a5);
-
-		FN_LOG(Logs, Log, "bAllowJoinInProgress: %i", PlaylistAthena->bAllowJoinInProgress);
-
-		if (PlaylistAthena->bAllowJoinInProgress)
-		{
-			bool bOldGameStart = (bool)(__int64(a1) + 0xFB8);
-
-			(*(bool*)(__int64(a1) + 0xFB8)) = false;
-
-			sub_7FF69C56C8D0OG(a1, a2, a3, a4, a5);
-
-			(*(bool*)(__int64(a1) + 0xFB8)) = bOldGameStart;
-		}*/
-
-		FN_LOG(Logs, Log, "J'aime pas trop les noirs perso");
-
-		// sub_7FF69C56C8D0OG(a1, a2, a3, a4, ErrorMessage);
-	}
-
 	void InitHook()
 	{
 		uintptr_t AddressChangingGameSessionId = MinHook::FindPattern(Patterns::ChangingGameSessionId);
@@ -1578,9 +1555,6 @@ namespace Hooks
 		//MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0xf951e8), Ret, nullptr); // Showing LoadingScreen
 		//MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0xf951e8));
 
-		//MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5f985f8), Ret, nullptr); // Test Join in progress
-		//MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5f985f8));
-
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + Offsets::ProcessEvent), ProcessEvent, (LPVOID*)(&ProcessEventOG));
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + Offsets::ProcessEvent));
 
@@ -1621,22 +1595,6 @@ namespace Hooks
 
 		UFunction* StartConversationFunc = FortNonPlayerConversationParticipantComponentClass->GetFunction("FortNonPlayerConversationParticipantComponent", "StartConversation");
 		MinHook::HookFunctionExec(StartConversationFunc, StartConversation, nullptr);
-
-		/*MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5f9c8d0), sub_7FF69C56C8D0, (LPVOID*)(&sub_7FF69C56C8D0OG));
-		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5f9c8d0));*/
-
-		/*MinHook::HookVTable(FortAthenaVehicleDefault, 0x810 / 8, ServerMove, nullptr, "AFortPhysicsPawn::ServerMove");
-		MinHook::HookVTable(FortAthenaVehicleDefault, 0x808 / 8, ServerMoveReliable, nullptr, "AFortPhysicsPawn::ServerMoveReliable");
-		MinHook::HookVTable(FortAthenaVehicleDefault, 0x800 / 8, ServerUpdateStateSync, nullptr, "AFortPhysicsPawn::ServerUpdateStateSync");*/
-
-		/*UFunction* SpawnVehicleFunc = FortAthenaVehicleSpawnerClass->GetFunction("FortAthenaVehicleSpawner", "SpawnVehicle");
-		MinHook::HookFunctionExec(SpawnVehicleFunc, SpawnVehicle, nullptr);
-		UFunction* SpawnVehicleWithConstructionFunc = FortAthenaVehicleSpawnerClass->GetFunction("FortAthenaVehicleSpawner", "SpawnVehicleWithConstruction");
-		MinHook::HookFunctionExec(SpawnVehicleWithConstructionFunc, SpawnVehicleWithConstruction, nullptr);*/
-
-		ABuildingProp;
-
-		// FortniteGame/Content/Athena/Items/EnvironmentalItems/ExplosiveProps/Athena_BuildingProp_Explosive.uasset
 
 		FN_LOG(LogInit, Log, "InitHook Success!");
 	}
