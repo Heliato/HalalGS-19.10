@@ -205,6 +205,7 @@ namespace Functions
 					if (!ConsumableWrapperItemDefinition) continue;
 
 					ABuildingGameplayActorConsumable* GameplayActorConsumable = SpawnGameplayActorConsumable(ConsumableSpawner, ConsumableWrapperItemDefinition);
+					if (!ConsumableWrapperItemDefinition) continue;
 
 					FVector ConsumableLocation = GameplayActorConsumable->K2_GetActorLocation();
 
