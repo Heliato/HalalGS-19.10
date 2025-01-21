@@ -488,17 +488,17 @@ namespace Hooks
 				if (!PlayerController || !PlayerController->Pawn)
 					return;
 
-				AFortDagwoodVehicle;
+				auto ItemDefinition = StaticFindObject<UFortWeaponItemDefinition>(L"/Game/Athena/Items/Consumables/FrenchYedoc/WID_Athena_FrenchYedoc_JWUnfriendly.WID_Athena_FrenchYedoc_JWUnfriendly");
 
-				// 
+				UFortKismetLibrary::K2_GiveItemToPlayer(PlayerController, ItemDefinition, FGuid(), 1, false);
 
-				auto TID_ContextTrap_Athena = StaticFindObject<UFortWeaponRangedItemDefinition>(L"/Game/Athena/Items/Consumables/WitchBroom/WID_Athena_WitchBroom.WID_Athena_WitchBroom");
+				// auto TID_ContextTrap_Athena = StaticFindObject<UFortWeaponRangedItemDefinition>(L"/Game/Athena/Items/Consumables/WitchBroom/WID_Athena_WitchBroom.WID_Athena_WitchBroom");
 				// auto TID_ContextTrap_Athena = StaticFindObject<UFortContextTrapItemDefinition>(L"/ParallelGameplay/Items/WestSausage/WID_WestSausage_Parallel_L_M.WID_WestSausage_Parallel_L_M");
 				// auto TID_ContextTrap_Athena = StaticFindObject<UFortContextTrapItemDefinition>(L"/Game/Athena/Items/Traps/TID_ContextTrap_Athena.TID_ContextTrap_Athena");
 				// auto TID_ContextTrap_Athena = StaticFindObject<UFortWeaponRangedItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Hook_Gun_VR_Ore_T03.WID_Hook_Gun_VR_Ore_T03");
 				// auto TID_ContextTrap_Athena = StaticFindObject<UFortWeaponRangedItemDefinition>(L"/Game/Athena/Items/Weapons/WID_AshtonPack_Indigo.WID_AshtonPack_Indigo");
 
-				FFortItemEntry ItemEntry;
+				/*FFortItemEntry ItemEntry;
 				ItemEntry.CreateDefaultItemEntry(TID_ContextTrap_Athena, 1, 0);
 
 				UFortWeaponItemDefinition* WeaponItemDefinition = Cast<UFortWeaponItemDefinition>(TID_ContextTrap_Athena);
@@ -577,7 +577,7 @@ namespace Hooks
 					true,
 					EFortPickupSourceTypeFlag::Other,
 					EFortPickupSpawnSource::Unset
-				);
+				);*/
 			}
 
 			if (GetAsyncKeyState(VK_F6) & 0x1)
@@ -1459,58 +1459,44 @@ namespace Hooks
 
 		FN_LOG(Logs, Log, "DropHeldObject called - HeldObjectComponent: %s", HeldObjectComponent->GetFullName().c_str());
 	}
-
-	void OnThrowComplete(UFortHeldObjectComponent* HeldObjectComponent, FFrame& Stack, void* Ret)
+	
+	void (*OnSpawnedOG)(UFortAthenaAISpawnerDataComponent_InventoryBase* AISpawnerDataComponent, AFortAIPawn* AIPawn);
+	void OnSpawned(UFortAthenaAISpawnerDataComponent_InventoryBase* AISpawnerDataComponent, AFortAIPawn* AIPawn)
 	{
-		Stack.Code += Stack.Code != nullptr;
+		FN_LOG(LogMinHook, Log, "UFortAthenaAISpawnerDataComponent_InventoryBase::OnSpawned - AISpawnerDataComponent: %s, AIPawn: %s", AISpawnerDataComponent->GetName().c_str(), AIPawn->GetFullName().c_str());
 
-		FN_LOG(Logs, Log, "OnThrowComplete called - HeldObjectComponent: %s", HeldObjectComponent->GetFullName().c_str());
-	}
+		UWorld;
+		AFortAthenaAIBotController;
 
-	void OnWeaponUnequipped(UFortHeldObjectComponent* HeldObjectComponent, FFrame& Stack, void* Ret)
-	{
-		Stack.Code += Stack.Code != nullptr;
+		if (AIPawn)
+		{
+			void* InventoryOwner = AIPawn->GetInventoryOwner();
 
-		FN_LOG(Logs, Log, "OnWeaponUnequipped called - HeldObjectComponent: %s", HeldObjectComponent->GetFullName().c_str());
-	}
+			uintptr_t Offset = uintptr_t(((UObject*)InventoryOwner)->VTable[0x2]) - InSDKUtils::GetImageBase();
+			uintptr_t IdaAddress = Offset + 0x7FF6965D0000ULL;
 
-	void PlaceHeldObject(UFortHeldObjectComponent* HeldObjectComponent, FFrame& Stack, void* Ret)
-	{
-		Stack.Code += Stack.Code != nullptr;
+			FN_LOG(LogMinHook, Log, "AFortAIPawn::0x2 - called in Offset [0x%llx], IdaAddress [%p]", (unsigned long long)Offset, IdaAddress);
 
-		FN_LOG(Logs, Log, "PlaceHeldObject called - HeldObjectComponent: %s", HeldObjectComponent->GetFullName().c_str());
-	}
+			uintptr_t Offset2 = uintptr_t(((UObject*)InventoryOwner)->VTable[0x3]) - InSDKUtils::GetImageBase();
+			uintptr_t IdaAddress2 = Offset2 + 0x7FF6965D0000ULL;
 
-	void RemoveHeldObjectFromVehicle(UFortHeldObjectComponent* HeldObjectComponent, FFrame& Stack, void* Ret)
-	{
-		Stack.Code += Stack.Code != nullptr;
+			FN_LOG(LogMinHook, Log, "AFortAIPawn::0x3 - called in Offset [0x%llx], IdaAddress [%p]", (unsigned long long)Offset2, IdaAddress2);
 
-		FN_LOG(Logs, Log, "RemoveHeldObjectFromVehicle called - HeldObjectComponent: %s", HeldObjectComponent->GetFullName().c_str());
-	}
+		}
 
-	void DropObjectHeldInVehicle(UFortHeldObjectComponent* HeldObjectComponent, FFrame& Stack, void* Ret)
-	{
-		Stack.Code += Stack.Code != nullptr;
+		/*
+			HalalGS-19.10: LogMinHook: Info: UFortAthenaAISpawnerDataComponent_InventoryBase::OnSpawned - AISpawnerDataComponent: Default__BP_AISC_Inv_FrenchYedoc_C, AIPawn: BP_Pawn_FrenchYedoc_C Artemis_Terrain.Artemis_Terrain.PersistentLevel.BP_Pawn_FrenchYedoc_C_2147442775
+			HalalGS-19.10: LogMinHook: Info: AFortAIPawn::0x2 - called in Offset [0x3f1e4b0], IdaAddress [00007FF69A4EE4B0]
+			HalalGS-19.10: LogMinHook: Info: AFortAIPawn::0x3 - called in Offset [0x672f014], IdaAddress [00007FF69CCFF014]
+			HalalGS-19.10: LogMinHook: Info: UFortAthenaAISpawnerDataComponent_InventoryBase::OnSpawned - called in Offset [0x5ec3ecd], IdaAddress [00007FF69C493ECD]
+		*/
 
-		FN_LOG(Logs, Log, "DropObjectHeldInVehicle called - HeldObjectComponent: %s", HeldObjectComponent->GetFullName().c_str());
-	}
+		uintptr_t Offset = uintptr_t(_ReturnAddress()) - InSDKUtils::GetImageBase();
+		uintptr_t IdaAddress = Offset + 0x7FF6965D0000ULL;
 
+		FN_LOG(LogMinHook, Log, "UFortAthenaAISpawnerDataComponent_InventoryBase::OnSpawned - called in Offset [0x%llx], IdaAddress [%p]", (unsigned long long)Offset, IdaAddress);
 
-	void StartConversation(UFortNonPlayerConversationParticipantComponent* NonPlayerConversationParticipantComponent, FFrame& Stack, void* Ret)
-	{
-		FGameplayTag InConversationEntryTag;
-		AActor* Instigator; 
-		AActor* Target;
-
-		Stack.StepCompiledIn(&InConversationEntryTag);
-		Stack.StepCompiledIn(&Instigator);
-		Stack.StepCompiledIn(&Target);
-
-		Stack.Code += Stack.Code != nullptr;
-
-		AFortGameModeAthena;
-
-		FN_LOG(Logs, Log, "StartConversation called - NonPlayerConversationParticipantComponent: %s", NonPlayerConversationParticipantComponent->GetFullName().c_str());
+		OnSpawnedOG(AISpawnerDataComponent, AIPawn);
 	}
 
 	void InitHook()
@@ -1580,21 +1566,8 @@ namespace Hooks
 		UFunction* DropHeldObjectFunc = FortHeldObjectComponentClass->GetFunction("FortHeldObjectComponent", "DropHeldObject");
 		MinHook::HookFunctionExec(DropHeldObjectFunc, DropHeldObject, nullptr);
 
-		UFunction* OnThrowCompleteFunc = FortHeldObjectComponentClass->GetFunction("FortHeldObjectComponent", "OnThrowComplete");
-		MinHook::HookFunctionExec(OnThrowCompleteFunc, OnThrowComplete, nullptr);
-		UFunction* OnWeaponUnequippedFunc = FortHeldObjectComponentClass->GetFunction("FortHeldObjectComponent", "OnWeaponUnequipped");
-		MinHook::HookFunctionExec(OnWeaponUnequippedFunc, OnWeaponUnequipped, nullptr);
-		UFunction* PlaceHeldObjectFunc = FortHeldObjectComponentClass->GetFunction("FortHeldObjectComponent", "PlaceHeldObject");
-		MinHook::HookFunctionExec(PlaceHeldObjectFunc, PlaceHeldObject, nullptr);
-		UFunction* RemoveHeldObjectFromVehicleFunc = FortHeldObjectComponentClass->GetFunction("FortHeldObjectComponent", "RemoveHeldObjectFromVehicle");
-		MinHook::HookFunctionExec(RemoveHeldObjectFromVehicleFunc, RemoveHeldObjectFromVehicle, nullptr);
-		UFunction* DropObjectHeldInVehicleFunc = FortHeldObjectComponentClass->GetFunction("FortHeldObjectComponent", "DropObjectHeldInVehicle");
-		MinHook::HookFunctionExec(DropObjectHeldInVehicleFunc, DropObjectHeldInVehicle, nullptr);
-
-		UClass* FortNonPlayerConversationParticipantComponentClass = UFortNonPlayerConversationParticipantComponent::StaticClass();
-
-		UFunction* StartConversationFunc = FortNonPlayerConversationParticipantComponentClass->GetFunction("FortNonPlayerConversationParticipantComponent", "StartConversation");
-		MinHook::HookFunctionExec(StartConversationFunc, StartConversation, nullptr);
+		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5ec8548), OnSpawned, (LPVOID*)(&OnSpawnedOG));
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5ec8548));
 
 		FN_LOG(LogInit, Log, "InitHook Success!");
 	}

@@ -180,10 +180,10 @@ namespace Abilities
 
 		MinHook::HookVTable(AbilitySystemComponentDefault, 0x840 / 8, InternalServerTryActiveAbility, nullptr, "UAbilitySystemComponent::InternalServerTryActiveAbility");
 
-		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x1210B88), GiveAbility, (LPVOID*)(&GiveAbilityOG));
+		/*MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x1210B88), GiveAbility, (LPVOID*)(&GiveAbilityOG));
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x1210B88));
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x4dfd34c), ClearAbility, (LPVOID*)(&ClearAbilityOG));
-		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x4dfd34c));
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x4dfd34c));*/
 
 		FN_LOG(LogInit, Log, "InitAbilities Success!");
 	}

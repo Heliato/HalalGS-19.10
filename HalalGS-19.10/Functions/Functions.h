@@ -3,11 +3,11 @@
 
 namespace Functions
 {
-	bool IsPlayerBuildableClasse(UClass* BuildableClasse)
+	bool IsPlayerBuildableClasse(UClass* BuildableClass)
 	{
 		AFortGameStateAthena* GameState = Cast<AFortGameStateAthena>(Globals::GetGameState());
 
-		if (!BuildableClasse || !GameState)
+		if (!BuildableClass || !GameState)
 			return false;
 
 		TArray<TSubclassOf<ABuildingActor>> BuildingActorClasses = GameState->BuildingActorClasses;
@@ -16,10 +16,10 @@ namespace Functions
 		{
 			for (int32 i = 0; i < BuildingActorClasses.Num(); i++)
 			{
-				TSubclassOf<ABuildingActor> BuildingActorClasse = BuildingActorClasses[i];
-				if (!BuildingActorClasse.Get()) continue;
+				TSubclassOf<ABuildingActor> BuildingActorClass = BuildingActorClasses[i];
+				if (!BuildingActorClass.Get()) continue;
 
-				if (BuildingActorClasse.Get() == BuildableClasse)
+				if (BuildingActorClass.Get() == BuildableClass)
 					return true;
 			}
 		}

@@ -2209,12 +2209,7 @@ namespace PlayerController
 		AFortInventory* WorldInventory = PlayerController->WorldInventory;
 		if (!WorldInventory) return;
 
-		FN_LOG(LogInventory, Log, "LoadedAmmo: %i", Count);
-		
-		uintptr_t Offset = uintptr_t(_ReturnAddress()) - InSDKUtils::GetImageBase();
-		uintptr_t IdaAddress = Offset + 0x7FF6965D0000ULL;
-
-		FN_LOG(LogMinHook, Log, "Function [ModLoadedAmmo] hooked with Offset [0x%llx], IdaAddress [%p]", (unsigned long long)Offset, IdaAddress);
+		// Function [ModLoadedAmmo] hooked with Offset [0x4bb7597], IdaAddress [00007FF69B187597]
 
 		for (int32 i = 0; i < WorldInventory->Inventory.ItemInstances.Num(); i++)
 		{
@@ -2252,13 +2247,6 @@ namespace PlayerController
 		AFortInventory* WorldInventory = PlayerController->WorldInventory;
 		if (!WorldInventory) return;
 
-		FN_LOG(LogInventory, Log, "PhantomReserveAmmo: %i", Count);
-
-		uintptr_t Offset = uintptr_t(_ReturnAddress()) - InSDKUtils::GetImageBase();
-		uintptr_t IdaAddress = Offset + 0x7FF6965D0000ULL;
-
-		FN_LOG(LogMinHook, Log, "Function [ModPhantomReserveAmmo] hooked with Offset [0x%llx], IdaAddress [%p]", (unsigned long long)Offset, IdaAddress);
-		
 		// Function [ModPhantomReserveAmmo] hooked with Offset [0x69b26a6], IdaAddress [00007FF69CF826A6]
 
 		for (int32 i = 0; i < WorldInventory->Inventory.ItemInstances.Num(); i++)

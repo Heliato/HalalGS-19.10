@@ -25,8 +25,9 @@ namespace GameMode
 		if (GameStateAthena && !GameStateAthena->CurrentPlaylistInfo.BasePlaylist)
 		{
 			//UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo");
+			UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Playlist_DefaultDuo.Playlist_DefaultDuo");
 			//UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/BattleLab/Playlist_BattleLab.Playlist_BattleLab");
-			UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Respawn/Variants/Respawn_Vamp/Playlist_Respawn_Vamp_Solo.Playlist_Respawn_Vamp_Solo");
+			//UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Respawn/Variants/Respawn_Vamp/Playlist_Respawn_Vamp_Solo.Playlist_Respawn_Vamp_Solo");
 			if (!PlaylistAthena) return false;
 
 			GameStateAthena->CurrentPlaylistInfo.BasePlaylist = PlaylistAthena;
@@ -152,6 +153,46 @@ namespace GameMode
 
 		Inventory::SetupInventory(PlayerControllerAthena, PickaxeItemDefinition);
 
+		PlayerStateAthena->SquadId = PlayerStateAthena->TeamIndex;
+		PlayerStateAthena->OnRep_SquadId();
+
+		AFortGameStateAthena* GameStateAthena = Cast<AFortGameStateAthena>(GameModeAthena->GameState);
+
+		if (GameStateAthena)
+		{
+			bool bFoundMemberInfo = false;
+			for (int32 i = 0; i < GameStateAthena->GameMemberInfoArray.Members.Num(); i++)
+			{
+				FGameMemberInfo* MemberInfo = &GameStateAthena->GameMemberInfoArray.Members[i];
+				if (!MemberInfo) continue;
+
+				bool bEqualEqual_UniqueNetId = UFortKismetLibrary::EqualEqual_UniqueNetIdReplUniqueNetIdRepl(MemberInfo->MemberUniqueId, PlayerStateAthena->UniqueId);
+				if (!bEqualEqual_UniqueNetId) continue;
+
+				MemberInfo->SquadId = PlayerStateAthena->SquadId;
+				MemberInfo->TeamIndex = PlayerStateAthena->TeamIndex;
+
+				GameStateAthena->GameMemberInfoArray.MarkItemDirty(*MemberInfo);
+				
+				bFoundMemberInfo = true;
+			}
+
+			if (!bFoundMemberInfo)
+			{
+				FGameMemberInfo MemberInfo;
+				MemberInfo.ReplicationID = -1;
+				MemberInfo.ReplicationKey = -1;
+				MemberInfo.MostRecentArrayReplicationKey = -1;
+
+				MemberInfo.SquadId = PlayerStateAthena->SquadId;
+				MemberInfo.TeamIndex = PlayerStateAthena->TeamIndex;
+				MemberInfo.MemberUniqueId = PlayerStateAthena->UniqueId;
+
+				GameStateAthena->GameMemberInfoArray.Members.Add(MemberInfo);
+				GameStateAthena->GameMemberInfoArray.MarkArrayDirty();
+			}
+		}
+
 		return PlayerPawn;
 	}
 
@@ -199,6 +240,66 @@ namespace GameMode
 		return StartAircraftPhaseOG(GameModeAthena, a2);
 	}
 
+	EFortTeam PickTeam(AFortGameModeAthena* GameModeAthena, EFortTeam PreferredTeam, AFortPlayerControllerAthena* PlayerControllerAthena)
+	{
+		AFortGameStateAthena* GameStateAthena = Cast<AFortGameStateAthena>(GameModeAthena->GameState);
+		if (!GameStateAthena) return EFortTeam::MAX;
+
+		UFortPlaylistAthena* PlaylistAthena = GameStateAthena->CurrentPlaylistInfo.BasePlaylist;
+		if (!GameStateAthena) return EFortTeam::MAX;
+
+		int32 MaxTeamCount = PlaylistAthena->MaxTeamCount;
+		int32 MaxTeamSize = PlaylistAthena->MaxTeamSize;
+
+		EFortTeam ChooseTeam = EFortTeam::MAX;
+
+		if (PlaylistAthena->bIsLargeTeamGame || PlaylistAthena->bAllowTeamSwitching)
+		{
+			int32 MinimumPlayers = INT32_MAX;
+
+			for (int32 i = 0; i < GameStateAthena->Teams.Num(); i++)
+			{
+				AFortTeamInfo* TeamInfo = GameStateAthena->Teams[i];
+				if (!TeamInfo) continue;
+
+				if (i >= MaxTeamCount) break;
+
+				int32 TeamMembersSize = TeamInfo->TeamMembers.Num();
+
+				if (TeamMembersSize < MinimumPlayers && TeamMembersSize < MaxTeamSize)
+				{
+					MinimumPlayers = TeamMembersSize;
+					ChooseTeam = EFortTeam(TeamInfo->Team);
+				}
+			}
+
+			FN_LOG(LogGameMode, Log, "[AFortGameModeAthena::PickTeam] Large Team Mode: ChosenTeam: %i with %i members", ChooseTeam, MinimumPlayers);
+		}
+		else
+		{
+			for (int32 i = 0; i < GameStateAthena->Teams.Num(); i++)
+			{
+				AFortTeamInfo* TeamInfo = GameStateAthena->Teams[i];
+				if (!TeamInfo) continue;
+
+				if (i > MaxTeamCount)
+					break;
+
+				int32 TeamMembersSize = TeamInfo->TeamMembers.Num();
+
+				if (TeamMembersSize >= MaxTeamSize)
+					continue;
+
+				FN_LOG(LogGameMode, Log, "[AFortGameModeAthena::PickTeam] Normal Team Mode: ChosenTeam: %i with %i members", TeamInfo->Team, TeamMembersSize);
+
+				ChooseTeam = EFortTeam(TeamInfo->Team);
+				break;
+			}
+		}
+
+		return ChooseTeam;
+	}
+
 	void InitGameMode()
 	{
 		AFortGameModeAthena* FortGameModeAthenaDefault = AFortGameModeAthena::GetDefaultObj();
@@ -210,6 +311,8 @@ namespace GameMode
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5fa67bc));
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5fa4538), StartAircraftPhase, (LPVOID*)(&StartAircraftPhaseOG));
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5fa4538));
+		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5f9b9c8), PickTeam, nullptr);
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5f9b9c8));
 
 		FN_LOG(LogInit, Log, "InitGameMode Success!");
 	}
