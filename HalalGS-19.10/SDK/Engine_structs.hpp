@@ -6012,6 +6012,13 @@ public:
 	struct FKeyHandleMap                          KeyHandlesToIndices;                               // 0x0008(0x0060)(Transient, Protected, NativeAccessSpecifierProtected)
 };
 
+#define UE_KINDA_SMALL_NUMBER	(1.e-4f)
+
+struct FKeyHandle
+{
+	uint32 Index;
+};
+
 // ScriptStruct Engine.RealCurve
 // 0x0008 (0x0070 - 0x0068)
 struct FRealCurve : public FIndexedCurve
@@ -6021,6 +6028,30 @@ public:
 	ERichCurveExtrapolation                       PreInfinityExtrap;                                 // 0x006C(0x0001)(ZeroConstructor, IsPlainOldData, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPublic)
 	ERichCurveExtrapolation                       PostInfinityExtrap;                                // 0x006D(0x0001)(ZeroConstructor, IsPlainOldData, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPublic)
 	uint8                                         Pad_6E[0x2];                                       // 0x006E(0x0002)(Fixing Struct Size After Last Property [ Dumper-7 ])
+
+	float Eval(float InTime, float InDefaultValue = 0.0f)
+	{
+		void** VTable = *reinterpret_cast<void***>((void*)this);
+
+		float (*Eval)(FRealCurve* RealCurve, float InTime, float InDefaultValue) = decltype(Eval)(VTable[0x11]);
+		return Eval(this, InTime, InDefaultValue);
+	}
+	
+	/*float Eval(float InTime, float InDefaultValue = 0.0f)
+	{
+		void** VTable = *reinterpret_cast<void***>((void*)this);
+
+		float (*Eval)(FRealCurve* RealCurve, float InTime, float InDefaultValue) = decltype(Eval)(VTable[0x11]);
+		return Eval(this, InTime, InDefaultValue);
+	}*/
+
+	FKeyHandle UpdateOrAddKey(float InTime, float InValue, const bool bUnwindRotation = false, float KeyTimeTolerance = UE_KINDA_SMALL_NUMBER)
+	{
+		void** VTable = *reinterpret_cast<void***>((void*)this);
+
+		FKeyHandle (*UpdateOrAddKey)(FRealCurve * RealCurve, float InTime, float InValue, const bool bUnwindRotation, float KeyTimeTolerance) = decltype(UpdateOrAddKey)(VTable[0x7]);
+		return UpdateOrAddKey(this, InTime, InValue, bUnwindRotation, KeyTimeTolerance);
+	}
 };
 
 // ScriptStruct Engine.RichCurve

@@ -314,13 +314,66 @@ namespace Functions
 					AthenaGameData = StaticLoadObject<UCurveTable>(L"/Game/Balance/AthenaGameData.AthenaGameData");
 			}
 
-			FName DeployTraceForGroundDistanceName = UKismetStringLibrary::Conv_StringToName(L"Default.Parachute.DeployTraceForGroundDistance");
+			if (AthenaGameData)
+			{
+				FName DeployTraceForGroundDistanceName = UKismetStringLibrary::Conv_StringToName(L"Default.Parachute.DeployTraceForGroundDistance");
 
-			float DefaultParachuteDeployTraceForGroundDistance;
-			UDataTableFunctionLibrary::EvaluateCurveTableRow(AthenaGameData, DeployTraceForGroundDistanceName, 0, nullptr, &DefaultParachuteDeployTraceForGroundDistance, L"Functions::InitializeDeployTraceForGroundDistance");
+				float DefaultParachuteDeployTraceForGroundDistance;
+				UDataTableFunctionLibrary::EvaluateCurveTableRow(AthenaGameData, DeployTraceForGroundDistanceName, 0, nullptr, &DefaultParachuteDeployTraceForGroundDistance, L"Functions::InitializeDeployTraceForGroundDistance");
 
-			GameStateAthena->DefaultParachuteDeployTraceForGroundDistance = DefaultParachuteDeployTraceForGroundDistance;
+				GameStateAthena->DefaultParachuteDeployTraceForGroundDistance = DefaultParachuteDeployTraceForGroundDistance;
+			}
 		}
+	}
+
+	bool InitializeSafeZoneDamage()
+	{
+		AFortGameStateAthena* GameStateAthena = Cast<AFortGameStateAthena>(Globals::GetGameState());
+
+		if (GameStateAthena)
+		{
+			UCurveTable* AthenaGameData = GameStateAthena->CurrentPlaylistInfo.BasePlaylist->GameData.Get();
+
+			if (!AthenaGameData)
+			{
+				AthenaGameData = GameStateAthena->AthenaGameDataTable;
+
+				if (!AthenaGameData)
+					AthenaGameData = StaticLoadObject<UCurveTable>(L"/Game/Balance/AthenaGameData.AthenaGameData");
+			}
+
+			if (AthenaGameData)
+			{
+				FName DefaultSafeZoneDamageName = UKismetStringLibrary::Conv_StringToName(L"Default.SafeZone.Damage");
+				FSimpleCurve* SimpleCurve = (FSimpleCurve*)AthenaGameData->FindCurve(DefaultSafeZoneDamageName, L"Functions::InitializeSafeZoneDamage");
+
+				if (SimpleCurve)
+				{
+					float Test = SimpleCurve->Eval(0);
+
+					FN_LOG(LogFunctions, Log, "Functions::InitializeSafeZoneDamage - Test Result: %.2f", Test);
+					
+					for (int32 i = 0; i < SimpleCurve->Keys.Num(); i++)
+					{
+						FSimpleCurveKey* SimpleCurveKey = &SimpleCurve->Keys[i];
+						if (!SimpleCurveKey) continue;
+
+						if (SimpleCurveKey->Time == 0.0f)
+						{
+							SimpleCurveKey->Value = 0.0f;
+						}
+					}
+					
+					float Test2 = SimpleCurve->Eval(0);
+
+					FN_LOG(LogFunctions, Log, "Functions::InitializeSafeZoneDamage - Test 2 Result: %.2f", Test2);
+
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 
 	void InitializeAI()

@@ -126,6 +126,7 @@
     <ClInclude Include="Functions\Navigation.h" />
     <ClInclude Include="Functions\NewInventory.h" />
     <ClInclude Include="Globals.h" />
+    <ClInclude Include="Globals\AthenaMarkerComponent.h" />
     <ClInclude Include="Globals\BuildingActor.h" />
     <ClInclude Include="Globals\DecoTool.h" />
     <ClInclude Include="Globals\FortAthenaSupplyDrop.h" />

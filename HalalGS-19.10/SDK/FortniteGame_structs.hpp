@@ -20956,6 +20956,18 @@ public:
 	uint8                                         Pad_96[0x2];                                       // 0x0096(0x0002)(Fixing Size After Last Property [ Dumper-7 ])
 	struct FMarkedActorDisplayInfo                CustomDisplayInfo;                                 // 0x0098(0x0098)(NativeAccessSpecifierPrivate)
 	class UFortWorldMarker*                       MarkerInstance;                                    // 0x0130(0x0008)(ZeroConstructor, Transient, IsPlainOldData, RepSkip, NoDestructor, HasGetValueTypeHash, NativeAccessSpecifierPrivate)
+
+	FFortWorldMarkerData* CreateWorldMarkerData()
+	{
+		FFortWorldMarkerData* (*CreateWorldMarkerData)(FFortWorldMarkerData* WorldMarkerData) = decltype(CreateWorldMarkerData)(0x1c8c350 + uintptr_t(GetModuleHandle(0)));
+		return CreateWorldMarkerData(this);
+	}
+
+	FFortWorldMarkerData* CopyWorldMarkerData(FFortWorldMarkerData* WorldMarkerData)
+	{
+		FFortWorldMarkerData* (*CopyWorldMarkerData)(FFortWorldMarkerData* PrimaryWorldMarkerData, FFortWorldMarkerData* WorldMarkerData) = decltype(CopyWorldMarkerData)(0x1c8bf7c + uintptr_t(GetModuleHandle(0)));
+		return CopyWorldMarkerData(this, WorldMarkerData);
+	}
 };
 
 // ScriptStruct FortniteGame.RadiusTrackingDisplayInfo

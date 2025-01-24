@@ -11519,6 +11519,23 @@ public:
 	uint8                                         Pad_28[0x78];                                      // 0x0028(0x0078)(Fixing Struct Size After Last Property [ Dumper-7 ])
 
 public:
+	TMap<FName, FRealCurve*> GetRowMap()
+	{
+		return *(TMap<FName, FRealCurve*>*)(__int64(this) + 0x28);
+	}
+
+	ECurveTableMode GetCurveTableMode()
+	{
+		return *(ECurveTableMode*)(__int64(this) + 0x98);
+	}
+
+	FRealCurve* FindCurve(FName RowName, const class FString& ContextString, bool bWarnIfNotFound = true)
+	{
+		FRealCurve* (*FindCurve)(UCurveTable* CurveTable, FName RowName, const class FString& ContextString, bool bWarnIfNotFound) = decltype(FindCurve)(0xdfc8ac + uintptr_t(GetModuleHandle(0)));
+		return FindCurve(this, RowName, ContextString, bWarnIfNotFound);
+	}
+
+public:
 	static class UClass* StaticClass()
 	{
 		return StaticClassImpl<"CurveTable">();

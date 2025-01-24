@@ -827,7 +827,7 @@ namespace PlayerController
 				PlayerPawn->SetMaxShield(100);
 				PlayerPawn->SetShield(0);
 				
-				UFortAbilitySystemComponent* AbilitySystemComponent = PlayerStateAthena->AbilitySystemComponent;
+				/*UFortAbilitySystemComponent* AbilitySystemComponent = PlayerStateAthena->AbilitySystemComponent;
 
 				if (AbilitySystemComponent)
 				{
@@ -839,7 +839,7 @@ namespace PlayerController
 						if (ActiveGameplayEffect.Spec.Def->IsA(UGE_OutsideSafeZoneDamage_C::StaticClass()))
 							AbilitySystemComponent->RemoveActiveGameplayEffect(ActiveGameplayEffect.Handle, 1);
 					}
-				}
+				}*/
 
 				PlayerControllerAthena->SetControlRotation(ClientRotation);
 			}
@@ -1718,6 +1718,64 @@ namespace PlayerController
 				catch (const std::out_of_range& e)
 				{
 					Message = L"Coordinates out of range!";
+				}
+			}
+			else
+			{
+				Message = L"PlayerPawn not found!";
+			}
+		}
+		else if (Action == "summon" && ParsedCommand.size() >= 2)
+		{
+			if (PlayerPawn)
+			{
+				std::string& ClassName = ParsedCommand[1];
+
+				int32 AmountToSpawn = 1;
+
+				if (ParsedCommand.size() >= 3)
+				{
+					bool bIsAmountToSpawnInt = std::all_of(ParsedCommand[2].begin(), ParsedCommand[2].end(), ::isdigit);
+
+					if (bIsAmountToSpawnInt)
+						AmountToSpawn = std::stoi(ParsedCommand[2]);
+				}
+
+				UClass* Class = StaticLoadObject<UClass>(std::wstring(ClassName.begin(), ClassName.end()).c_str());
+
+				if (Class)
+				{
+					const float LootSpawnLocationX = 300;
+					const float LootSpawnLocationY = 0;
+					const float LootSpawnLocationZ = 0;
+
+					FVector SpawnLocation = PlayerPawn->K2_GetActorLocation() +
+						PlayerPawn->GetActorForwardVector() * LootSpawnLocationX +
+						PlayerPawn->GetActorRightVector() * LootSpawnLocationY +
+						PlayerPawn->GetActorUpVector() * LootSpawnLocationZ;
+
+					for (int32 j = 0; j < AmountToSpawn; j++)
+					{
+						AActor* Actor = PlayerPawn->GetWorld()->SpawnActor(Class, &SpawnLocation);
+
+						/*ABuildingContainer* BuildingContainer = Cast<ABuildingContainer>(Actor);
+						ABuildingSMActor* BuildingSMActor = Cast<ABuildingSMActor>(Actor);
+
+						if (BuildingContainer)
+						{
+							BuildingContainer->PostUpdate(EFortBuildingPersistentState::New);
+						}
+						else if (BuildingSMActor)
+						{
+							BuildingSMActor->PostUpdate();
+						}*/
+					}
+
+					Message = L"Summon successful!";
+				}
+				else 
+				{
+					Message = L"Class not found!";
 				}
 			}
 			else

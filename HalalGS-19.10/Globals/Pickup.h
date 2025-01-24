@@ -3,7 +3,7 @@
 namespace Pickup
 {
 	bool (*PickupAddInventoryOwnerInterfaceOG)(AFortPickup* Pickup, void* InventoryOwner, bool bDestroyPickup);
-	void (*TossPickupOG)(AFortPickup* Pickup, const FVector& FinalLocation, class AFortPawn* ItemOwner, int32 OverrideMaxStackCount, bool bToss);
+	void (*TossPickupOG)(AFortPickup* Pickup, const FVector& FinalLocation, AFortPawn* ItemOwner, int32 OverrideMaxStackCount, bool bToss, bool bShouldCombinePickupsWhenTossCompletes, const EFortPickupSourceTypeFlag InPickupSourceTypeFlags, const EFortPickupSpawnSource InPickupSpawnSource);
 	void (*OnServerStopCallbackOG)(AFortPickup* Pickup, const FHitResult& Hit);
 
 	bool PickupAddInventoryOwnerInterface(AFortPickup* Pickup, void* InventoryOwner, bool bDestroyPickup)
@@ -36,11 +36,11 @@ namespace Pickup
 		return true;
 	}
 
-	void TossPickup(AFortPickup* Pickup, const FVector& FinalLocation, class AFortPawn* ItemOwner, int32 OverrideMaxStackCount, bool bToss)
+	void TossPickup(AFortPickup* Pickup, const FVector& FinalLocation, AFortPawn* ItemOwner, int32 OverrideMaxStackCount, bool bToss, bool bShouldCombinePickupsWhenTossCompletes, const EFortPickupSourceTypeFlag InPickupSourceTypeFlags, const EFortPickupSpawnSource InPickupSpawnSource)
 	{
-		TossPickupOG(Pickup, FinalLocation, ItemOwner, OverrideMaxStackCount, bToss);
+		TossPickupOG(Pickup, FinalLocation, ItemOwner, OverrideMaxStackCount, bToss, bShouldCombinePickupsWhenTossCompletes, InPickupSourceTypeFlags, InPickupSpawnSource);
 
-		if (Pickup->bActorIsBeingDestroyed || Pickup->bTossedFromContainer)
+		if (Pickup->bActorIsBeingDestroyed || Pickup->bTossedFromContainer || !bToss)
 			return;
 
 		Inventory::CombineNearestPickup(Pickup, 300.0f);

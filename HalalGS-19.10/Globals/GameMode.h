@@ -24,10 +24,10 @@ namespace GameMode
 
 		if (GameStateAthena && !GameStateAthena->CurrentPlaylistInfo.BasePlaylist)
 		{
-			//UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo");
-			UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Playlist_DefaultDuo.Playlist_DefaultDuo");
+			UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo");
+			// UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Playlist_DefaultSquad.Playlist_DefaultSquad");
 			//UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/BattleLab/Playlist_BattleLab.Playlist_BattleLab");
-			//UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Respawn/Variants/Respawn_Vamp/Playlist_Respawn_Vamp_Solo.Playlist_Respawn_Vamp_Solo");
+			// UFortPlaylistAthena* PlaylistAthena = StaticFindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Respawn/Variants/Respawn_Vamp/Playlist_Respawn_Vamp_Solo.Playlist_Respawn_Vamp_Solo");
 			if (!PlaylistAthena) return false;
 
 			GameStateAthena->CurrentPlaylistInfo.BasePlaylist = PlaylistAthena;
@@ -83,6 +83,13 @@ namespace GameMode
 			FN_LOG(LogGameMode, Log, "Playlist Successful Set!");
 		}
 
+		/*static bool bInitializeSafeZoneDamage = false;
+
+		if (!bInitializeSafeZoneDamage)
+		{
+			if (Functions::InitializeSafeZoneDamage())
+				bInitializeSafeZoneDamage = true;
+		}*/
 
 		if (GameModeAthena->bWorldIsReady)
 		{
@@ -150,6 +157,9 @@ namespace GameMode
 					PickaxeItemDefinition = DefaultPickaxeSkin->WeaponDefinition;
 			}
 		}
+
+		PlayerControllerAthena->bInfiniteAmmo = true;
+		PlayerControllerAthena->bBuildFree = true;
 
 		Inventory::SetupInventory(PlayerControllerAthena, PickaxeItemDefinition);
 

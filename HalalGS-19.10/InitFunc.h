@@ -19,6 +19,7 @@ namespace InitFunc
 		FortAthenaSupplyDrop::InitFortAthenaSupplyDrop();
 		Pickup::InitPickup();
 		DecoTool::InitDecoTool();
+		AthenaMarkerComponent::InitAthenaMarkerComponent();
 
 		// Functions
 		Beacon::InitBeacon();

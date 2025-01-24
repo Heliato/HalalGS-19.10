@@ -36,6 +36,7 @@
 #include "Globals/BuildingActor.h"
 #include "Globals/Pickup.h"
 #include "Globals/DecoTool.h"
+#include "Globals/AthenaMarkerComponent.h"
 
 #include "Functions/Cheats.h"
 

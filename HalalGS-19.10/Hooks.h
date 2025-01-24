@@ -400,7 +400,7 @@ namespace Hooks
 					return;
 			}
 
-			if (GetAsyncKeyState(VK_F4) & 0x1)
+			/*if (GetAsyncKeyState(VK_F4) & 0x1)
 			{
 				AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
 
@@ -479,18 +479,64 @@ namespace Hooks
 					EFortPickupSourceTypeFlag::Tossed,
 					EFortPickupSpawnSource::TossedByPlayer
 				);
-			}
+			}*/
 
-			if (GetAsyncKeyState(VK_F5) & 0x1)
+			if (GetAsyncKeyState(VK_F4) & 0x1)
 			{
 				AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
 
 				if (!PlayerController || !PlayerController->Pawn)
 					return;
 
+				auto Spiderman = StaticFindObject<UFortResourceItemDefinition>(L"/ParallelGameplay/Items/WestSausage/WID_WestSausage_Parallel.WID_WestSausage_Parallel");
+				auto AssaultRifle = StaticFindObject<UFortResourceItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Assault_Auto_Athena_R_Ore_T03.WID_Assault_Auto_Athena_R_Ore_T03");
+				auto PumpShotgun = StaticFindObject<UFortResourceItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Shotgun_Standard_Athena_SR_Ore_T03.WID_Shotgun_Standard_Athena_SR_Ore_T03");
+				auto SMG = StaticFindObject<UFortResourceItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Pistol_AutoHeavyPDW_Athena_R_Ore_T03.WID_Pistol_AutoHeavyPDW_Athena_R_Ore_T03");
+				auto Minis = StaticFindObject<UFortResourceItemDefinition>(L"/Game/Athena/Items/Consumables/ShieldSmall/Athena_ShieldSmall.Athena_ShieldSmall");
+
+				UFortKismetLibrary::K2_GiveItemToAllPlayers(PlayerController, Spiderman, FGuid(), 1, false);
+				UFortKismetLibrary::K2_GiveItemToAllPlayers(PlayerController, AssaultRifle, FGuid(), 1, false);
+				UFortKismetLibrary::K2_GiveItemToAllPlayers(PlayerController, PumpShotgun, FGuid(), 1, false);
+				UFortKismetLibrary::K2_GiveItemToAllPlayers(PlayerController, SMG, FGuid(), 1, false);
+				UFortKismetLibrary::K2_GiveItemToAllPlayers(PlayerController, Minis, FGuid(), 6, false);
+			}
+
+			if (GetAsyncKeyState(VK_F5) & 0x1)
+			{
+				AFortGameStateAthena* GameStateAthena = Cast<AFortGameStateAthena>(Globals::GetGameState());
+
+				if (GameStateAthena)
+				{
+					UCurveTable* AthenaGameData = GameStateAthena->CurrentPlaylistInfo.BasePlaylist->GameData.Get();
+
+					if (!AthenaGameData)
+					{
+						AthenaGameData = GameStateAthena->AthenaGameDataTable;
+
+						if (!AthenaGameData)
+							AthenaGameData = StaticLoadObject<UCurveTable>(L"/Game/Balance/AthenaGameData.AthenaGameData");
+					}
+
+					if (AthenaGameData)
+					{
+						FName DefaultSafeZoneDamageName = UKismetStringLibrary::Conv_StringToName(L"Default.SafeZone.Damage");
+						FSimpleCurve* SimpleCurve = (FSimpleCurve*)AthenaGameData->FindCurve(DefaultSafeZoneDamageName, FString());
+
+						if (SimpleCurve)
+						{
+							FN_LOG(LogFunctions, Log, "DefaultSafeZoneDamage Value at 0 : %.2f", SimpleCurve->Eval(0));
+						}
+					}
+				}
+
+				/*AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
+
+				if (!PlayerController || !PlayerController->Pawn)
+					return;
+
 				auto ItemDefinition = StaticFindObject<UFortWeaponItemDefinition>(L"/Game/Athena/Items/Consumables/FrenchYedoc/WID_Athena_FrenchYedoc_JWUnfriendly.WID_Athena_FrenchYedoc_JWUnfriendly");
 
-				UFortKismetLibrary::K2_GiveItemToPlayer(PlayerController, ItemDefinition, FGuid(), 1, false);
+				UFortKismetLibrary::K2_GiveItemToPlayer(PlayerController, ItemDefinition, FGuid(), 1, false);*/
 
 				// auto TID_ContextTrap_Athena = StaticFindObject<UFortWeaponRangedItemDefinition>(L"/Game/Athena/Items/Consumables/WitchBroom/WID_Athena_WitchBroom.WID_Athena_WitchBroom");
 				// auto TID_ContextTrap_Athena = StaticFindObject<UFortContextTrapItemDefinition>(L"/ParallelGameplay/Items/WestSausage/WID_WestSausage_Parallel_L_M.WID_WestSausage_Parallel_L_M");
@@ -582,7 +628,50 @@ namespace Hooks
 
 			if (GetAsyncKeyState(VK_F6) & 0x1)
 			{
-				AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
+				AFortGameStateAthena* GameStateAthena = Cast<AFortGameStateAthena>(Globals::GetGameState());
+
+				if (GameStateAthena)
+				{
+					UCurveTable* AthenaGameData = GameStateAthena->CurrentPlaylistInfo.BasePlaylist->GameData.Get();
+
+					if (!AthenaGameData)
+					{
+						AthenaGameData = GameStateAthena->AthenaGameDataTable;
+
+						if (!AthenaGameData)
+							AthenaGameData = StaticLoadObject<UCurveTable>(L"/Game/Balance/AthenaGameData.AthenaGameData");
+					}
+
+					if (AthenaGameData)
+					{
+						FName DefaultSafeZoneDamageName = UKismetStringLibrary::Conv_StringToName(L"Default.SafeZone.Damage");
+						FSimpleCurve* SimpleCurve = (FSimpleCurve*)AthenaGameData->FindCurve(DefaultSafeZoneDamageName, L"Functions::InitializeSafeZoneDamage");
+
+						if (SimpleCurve)
+						{
+							float Test = SimpleCurve->Eval(0);
+
+							FN_LOG(LogFunctions, Log, "Functions::InitializeSafeZoneDamage - First Result: %.2f", Test);
+
+							for (int32 i = 0; i < SimpleCurve->Keys.Num(); i++)
+							{
+								FSimpleCurveKey* SimpleCurveKey = &SimpleCurve->Keys[i];
+								if (!SimpleCurveKey) continue;
+
+								if (SimpleCurveKey->Time == 0.0f)
+								{
+									SimpleCurveKey->Value = 0.0f;
+								}
+							}
+
+							float Test2 = SimpleCurve->Eval(0);
+
+							FN_LOG(LogFunctions, Log, "Functions::InitializeSafeZoneDamage - Last Result: %.2f", Test2);
+						}
+					}
+				}
+
+				/*AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
 
 				if (!PlayerController)
 					return;
@@ -623,7 +712,7 @@ namespace Hooks
 					if (!ActivatableAbility.Ability) continue;
 
 					FN_LOG(LogHooks, Log, "%i - ActivatableAbility.Ability: %s", i, ActivatableAbility.Ability->GetFullName().c_str());
-				}
+				}*/
 			}
 
 			if (GetAsyncKeyState(VK_F7) & 0x1)
@@ -985,6 +1074,7 @@ namespace Hooks
 				Functions::InitializeConsumableBGAs();
 				Functions::InitializeTreasureChests();
 				Functions::InitializeAmmoBoxs();
+				
 
 				Functions::InitializeAI();
 				// Navigation::InitializeNavigation(Globals::GetWorld());
@@ -1499,6 +1589,11 @@ namespace Hooks
 		OnSpawnedOG(AISpawnerDataComponent, AIPawn);
 	}
 
+	float GetMaxTickRate()
+	{
+		return 30.0f;
+	}
+
 	void InitHook()
 	{
 		uintptr_t AddressChangingGameSessionId = MinHook::FindPattern(Patterns::ChangingGameSessionId);
@@ -1568,6 +1663,9 @@ namespace Hooks
 
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5ec8548), OnSpawned, (LPVOID*)(&OnSpawnedOG));
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5ec8548));
+
+		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0xaed938), GetMaxTickRate, nullptr);
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0xaed938));
 
 		FN_LOG(LogInit, Log, "InitHook Success!");
 	}
