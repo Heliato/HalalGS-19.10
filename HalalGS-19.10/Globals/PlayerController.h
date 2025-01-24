@@ -156,6 +156,9 @@ namespace PlayerController
 				}
 
 				GameModeAthena->RemoveFromAlivePlayers(PlayerControllerAthena, CorrectKillerPlayerState, KillerPawn, KillerWeaponItemDefinition, DeathCause);
+
+				UAthenaGadgetItemDefinition* VictoryCrown = StaticFindObject<UAthenaGadgetItemDefinition>(L"/VictoryCrownsGameplay/Items/AGID_VictoryCrown.AGID_VictoryCrown");
+				UFortKismetLibrary::K2_GiveItemToAllPlayers(PlayerControllerZone, VictoryCrown, FGuid(), 1, false);
 			}
 		}
 
