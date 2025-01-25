@@ -17,40 +17,44 @@ namespace PlayerController
 		if (!PlayerStateAthena || !GameModeAthena) 
 			return;
 
-		FN_LOG(LogPlayerController, Log, "[AFortPlayerControllerAthena::ServerClientIsReadyToRespawn] called!");
+		AFortGameStateAthena* GameStateAthena = Cast<AFortGameStateAthena>(GameModeAthena->GameState);
+		if (!GameStateAthena) return;
 
-		FFortRespawnData* RespawnData = &PlayerStateAthena->RespawnData;
-
-		if (RespawnData->bServerIsReady && RespawnData->bRespawnDataAvailable)
+		if (GameStateAthena->IsRespawningAllowed(PlayerStateAthena))
 		{
-			const FVector& RespawnLocation = RespawnData->RespawnLocation;
-			const FRotator& RespawnRotation = RespawnData->RespawnRotation;
+			FFortRespawnData* RespawnData = &PlayerStateAthena->RespawnData;
 
-			FTransform SpawnTransform = UKismetMathLibrary::MakeTransform(RespawnLocation, RespawnRotation, FVector({ 1, 1, 1 }));
-
-			AFortPlayerPawn* PlayerPawn = Cast<AFortPlayerPawn>(GameModeAthena->SpawnDefaultPawnAtTransform(PlayerControllerAthena, SpawnTransform));
-
-			if (!PlayerPawn)
+			if (RespawnData->bServerIsReady && RespawnData->bRespawnDataAvailable)
 			{
-				FN_LOG(LogPlayerController, Error, "[AFortPlayerControllerAthena::ServerClientIsReadyToRespawn] Failed to spawn PlayerPawn!");
-				return;
+				const FVector& RespawnLocation = RespawnData->RespawnLocation;
+				const FRotator& RespawnRotation = RespawnData->RespawnRotation;
+
+				FTransform SpawnTransform = UKismetMathLibrary::MakeTransform(RespawnLocation, RespawnRotation, FVector({ 1, 1, 1 }));
+
+				AFortPlayerPawn* PlayerPawn = Cast<AFortPlayerPawn>(GameModeAthena->SpawnDefaultPawnAtTransform(PlayerControllerAthena, SpawnTransform));
+
+				if (!PlayerPawn)
+				{
+					FN_LOG(LogPlayerController, Error, "[AFortPlayerControllerAthena::ServerClientIsReadyToRespawn] Failed to spawn PlayerPawn!");
+					return;
+				}
+
+				PlayerPawn->Owner = PlayerControllerAthena;
+				PlayerPawn->OnRep_Owner();
+
+				PlayerControllerAthena->Pawn = PlayerPawn;
+				PlayerControllerAthena->OnRep_Pawn();
+				PlayerControllerAthena->Possess(PlayerPawn);
+
+				PlayerPawn->SetMaxHealth(100);
+				PlayerPawn->SetHealth(100);
+				PlayerPawn->SetMaxShield(100);
+				PlayerPawn->SetShield(100);
+
+				PlayerControllerAthena->SetControlRotation(RespawnRotation);
+
+				RespawnData->bClientIsReady = true;
 			}
-
-			PlayerPawn->Owner = PlayerControllerAthena;
-			PlayerPawn->OnRep_Owner();
-
-			PlayerControllerAthena->Pawn = PlayerPawn;
-			PlayerControllerAthena->OnRep_Pawn();
-			PlayerControllerAthena->Possess(PlayerPawn);
-
-			PlayerPawn->SetMaxHealth(100);
-			PlayerPawn->SetHealth(100);
-			PlayerPawn->SetMaxShield(100);
-			PlayerPawn->SetShield(100);
-
-			PlayerControllerAthena->SetControlRotation(RespawnRotation);
-
-			RespawnData->bClientIsReady = true;
 		}
 	}
 
@@ -146,19 +150,56 @@ namespace PlayerController
 						KillerWeaponItemDefinition = Weapon->WeaponData;
 				}
 
-				if ((GameModeAthena->AliveBots.Num() + GameModeAthena->AlivePlayers.Num()) <= 2)
-				{
-					if (KillerPlayerControllerAthena)
-					{
-						KillerPlayerControllerAthena->ClientNotifyWon(KillerPawn, KillerWeaponItemDefinition, DeathCause);
-						KillerPlayerControllerAthena->ClientNotifyTeamWon(KillerPawn, KillerWeaponItemDefinition, DeathCause);
-					}
-				}
+				bool bMatchEnded = GameModeAthena->HasMatchEnded();
 
 				GameModeAthena->RemoveFromAlivePlayers(PlayerControllerAthena, CorrectKillerPlayerState, KillerPawn, KillerWeaponItemDefinition, DeathCause);
 
-				UAthenaGadgetItemDefinition* VictoryCrown = StaticFindObject<UAthenaGadgetItemDefinition>(L"/VictoryCrownsGameplay/Items/AGID_VictoryCrown.AGID_VictoryCrown");
-				UFortKismetLibrary::K2_GiveItemToAllPlayers(PlayerControllerZone, VictoryCrown, FGuid(), 1, false);
+				PlayerStateAthena->Place = GameStateAthena->TeamsLeft;
+				PlayerStateAthena->OnRep_Place();
+
+				if (GameStateAthena->TeamsLeft == 1 && KillerPlayerState && !bMatchEnded)
+				{
+					for (int32 i = 0; i < GameStateAthena->Teams.Num(); i++)
+					{
+						AFortTeamInfo* TeamInfo = GameStateAthena->Teams[i];
+						if (!TeamInfo) continue;
+
+						if (TeamInfo->Team != KillerPlayerState->TeamIndex)
+							continue;
+
+						for (int32 j = 0; j < TeamInfo->TeamMembers.Num(); j++)
+						{
+							AFortPlayerControllerAthena* TeamMember = Cast<AFortPlayerControllerAthena>(TeamInfo->TeamMembers[j]);
+							if (!TeamMember) continue;
+
+							AFortPlayerStateAthena* TeamMemberPlayerState = Cast<AFortPlayerStateAthena>(TeamMember->PlayerState);
+							if (!TeamMemberPlayerState) continue;
+
+							TeamMemberPlayerState->Place = GameStateAthena->TeamsLeft;
+							TeamMemberPlayerState->OnRep_Place();
+
+							TeamMember->ClientNotifyWon(KillerPawn, KillerWeaponItemDefinition, DeathCause);
+							TeamMember->ClientNotifyTeamWon(KillerPawn, KillerWeaponItemDefinition, DeathCause);
+
+							UAthenaGadgetItemDefinition* VictoryCrown = StaticFindObject<UAthenaGadgetItemDefinition>(L"/VictoryCrownsGameplay/Items/AGID_VictoryCrown.AGID_VictoryCrown");
+
+							if (VictoryCrown)
+							{
+								int32 ItemQuantity = UFortKismetLibrary::K2_GetItemQuantityOnPlayer(TeamMember, VictoryCrown, FGuid());
+
+								if (ItemQuantity <= 0)
+									UFortKismetLibrary::K2_GiveItemToPlayer(TeamMember, VictoryCrown, FGuid(), 1, false);
+							}
+						}
+
+						GameStateAthena->WinningTeam = TeamInfo->Team;
+						GameStateAthena->OnRep_WinningTeam();
+
+						GameStateAthena->WinningPlayerState = KillerPlayerState;
+						GameStateAthena->OnRep_WinningPlayerState();
+						break;
+					}
+				}
 			}
 		}
 
@@ -179,6 +220,9 @@ namespace PlayerController
 			}
 		}
 #endif // CHEATS
+
+		UFortVehicleAimingWeaponComp;
+		AFortMountedTurret;
 
 		ServerReadyToStartMatchOG(PlayerController);
 	}
