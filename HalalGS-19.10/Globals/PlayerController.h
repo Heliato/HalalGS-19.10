@@ -191,12 +191,6 @@ namespace PlayerController
 									UFortKismetLibrary::K2_GiveItemToPlayer(TeamMember, VictoryCrown, FGuid(), 1, false);
 							}
 						}
-
-						GameStateAthena->WinningTeam = TeamInfo->Team;
-						GameStateAthena->OnRep_WinningTeam();
-
-						GameStateAthena->WinningPlayerState = KillerPlayerState;
-						GameStateAthena->OnRep_WinningPlayerState();
 						break;
 					}
 				}
