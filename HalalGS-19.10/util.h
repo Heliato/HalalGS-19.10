@@ -189,9 +189,9 @@ public:
             PlayerState->OnRep_bHasStartedPlaying();
 
             PlayerPawn->SetMaxHealth(100);
-            PlayerPawn->SetHealth(100);
+            PlayerPawn->SetHealth(1);
             PlayerPawn->SetMaxShield(100);
-            PlayerPawn->SetShield(0);
+            PlayerPawn->SetShield(1);
 
             PlayerController->bIsDisconnecting = false;
             PlayerController->bHasClientFinishedLoading = true;

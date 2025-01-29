@@ -66,6 +66,12 @@ namespace PlayerController
 		if (!PlayerPawnAthena || !PlayerStateAthena)
 			return;
 
+		AFortGameModeAthena* GameModeAthena = Cast<AFortGameModeAthena>(Globals::GetGameMode());
+		AFortGameStateAthena* GameStateAthena = Cast<AFortGameStateAthena>(GameModeAthena->GameState);
+
+		if (!GameModeAthena || !GameStateAthena)
+			return;
+
 		AFortPlayerStateAthena* KillerPlayerState = Cast<AFortPlayerStateAthena>(DeathReport.KillerPlayerState);
 		AFortPlayerPawnAthena* KillerPawn = Cast<AFortPlayerPawnAthena>(DeathReport.KillerPawn);
 		AFortPlayerControllerAthena* KillerPlayerControllerAthena = (KillerPawn ? Cast<AFortPlayerControllerAthena>(KillerPawn->Controller) : nullptr);
@@ -78,7 +84,7 @@ namespace PlayerController
 
 		EDeathCause DeathCause = AFortPlayerStateAthena::ToDeathCause(TagContainer, PlayerPawnAthena->bIsDBNO);
 
-		FDeathInfo DeathInfo = FDeathInfo();
+		FDeathInfo& DeathInfo = PlayerStateAthena->DeathInfo;
 		DeathInfo.FinisherOrDowner = KillerPlayerState ? KillerPlayerState : PlayerStateAthena;
 		DeathInfo.bDBNO = PlayerPawnAthena->bIsDBNO;
 		DeathInfo.DeathCause = DeathCause;
@@ -88,49 +94,56 @@ namespace PlayerController
 
 		PlayerStateAthena->PawnDeathLocation = DeathInfo.DeathLocation;
 
-		PlayerStateAthena->DeathInfo = DeathInfo;
 		PlayerStateAthena->OnRep_DeathInfo();
 
-		if (KillerPlayerState && PlayerStateAthena != KillerPlayerState)
-		{
-			KillerPlayerState->KillScore++;
-			KillerPlayerState->OnRep_Kills();
-
-			KillerPlayerState->ClientReportKill(PlayerStateAthena);
-
-#ifdef SIPHON
-			AFortPlayerControllerAthena* KillerPlayerController = Cast<AFortPlayerControllerAthena>(KillerPlayerState->Owner);
-
-			if (KillerPlayerController)
-				Functions::GiveSiphonBonus(KillerPlayerController, KillerPawn);
-#endif // SIPHON
-		}
+		FN_LOG(LogPlayerController, Warning, "[AFortPlayerControllerZone::ClientOnPawnDied] Killer PlayerName: %s, Killed PlayerName: %s - Distance: %.2f", 
+			KillerPlayerState->GetPlayerName().ToString().c_str(), PlayerStateAthena->GetPlayerName().ToString().c_str(), Distance);
 
 		AFortPlayerControllerAthena* PlayerControllerAthena = Cast<AFortPlayerControllerAthena>(PlayerControllerZone);
-		AFortGameModeAthena* GameModeAthena = Cast<AFortGameModeAthena>(Globals::GetGameMode());
-		AFortGameStateAthena* GameStateAthena = Cast<AFortGameStateAthena>(GameModeAthena->GameState);
 
-		if (PlayerControllerAthena && GameModeAthena && GameStateAthena)
+		if (PlayerControllerAthena)
 		{
-			if (!GameStateAthena->IsRespawningAllowed(PlayerStateAthena) && !PlayerPawnAthena->bIsDBNO)
+			if (KillerPlayerState && PlayerStateAthena != KillerPlayerState)
 			{
-				FAthenaMatchTeamStats TeamStats = FAthenaMatchTeamStats();
-				TeamStats.Place = GameStateAthena->PlayersLeft;
-				TeamStats.TotalPlayers = GameStateAthena->TotalPlayers;
+				KillerPlayerState->KillScore++;
+				KillerPlayerState->OnRep_Kills();
 
-				PlayerControllerAthena->ClientSendTeamStatsForPlayer(TeamStats);
+				KillerPlayerState->ClientReportKill(PlayerStateAthena);
 
-				UAthenaPlayerMatchReport* MatchReport = PlayerControllerAthena->MatchReport;
-
-				if (MatchReport)
+				for (int32 i = 0; i < GameStateAthena->Teams.Num(); i++)
 				{
-					MatchReport->bHasMatchStats = true;
-					MatchReport->bHasTeamStats = true;
-					MatchReport->TeamStats = TeamStats;
-					MatchReport->bHasRewards = true;
-					MatchReport->EndOfMatchResults = FAthenaRewardResult();
+					AFortTeamInfo* TeamInfo = GameStateAthena->Teams[i];
+					if (!TeamInfo) continue;
+
+					if (TeamInfo->Team != KillerPlayerState->TeamIndex)
+						continue;
+
+					for (int32 j = 0; j < TeamInfo->TeamMembers.Num(); j++)
+					{
+						AFortPlayerControllerAthena* TeamMember = Cast<AFortPlayerControllerAthena>(TeamInfo->TeamMembers[j]);
+						if (!TeamMember) continue;
+
+						AFortPlayerStateAthena* TeamMemberPlayerState = Cast<AFortPlayerStateAthena>(TeamMember->PlayerState);
+						if (!TeamMemberPlayerState) continue;
+
+						TeamMemberPlayerState->TeamKillScore++;
+						TeamMemberPlayerState->OnRep_TeamKillScore();
+
+						TeamMemberPlayerState->ClientReportTeamKill(TeamMemberPlayerState->TeamKillScore);
+					}
+					break;
 				}
 
+#ifdef SIPHON
+				AFortPlayerControllerAthena* KillerPlayerController = Cast<AFortPlayerControllerAthena>(KillerPlayerState->Owner);
+
+				if (KillerPlayerController)
+					Functions::GiveSiphonBonus(KillerPlayerController, KillerPawn);
+#endif // SIPHON
+			}
+
+			if (!GameStateAthena->IsRespawningAllowed(PlayerStateAthena) && !PlayerPawnAthena->bIsDBNO)
+			{
 				AFortPlayerStateAthena* CorrectKillerPlayerState = (KillerPlayerState && KillerPlayerState == PlayerStateAthena) ? nullptr : KillerPlayerState;
 				UFortWeaponItemDefinition* KillerWeaponItemDefinition = nullptr;
 
@@ -154,44 +167,126 @@ namespace PlayerController
 
 				GameModeAthena->RemoveFromAlivePlayers(PlayerControllerAthena, CorrectKillerPlayerState, KillerPawn, KillerWeaponItemDefinition, DeathCause);
 
-				PlayerStateAthena->Place = GameStateAthena->TeamsLeft;
-				PlayerStateAthena->OnRep_Place();
-
-				if (GameStateAthena->TeamsLeft == 1 && KillerPlayerState && !bMatchEnded)
+				if (GameStateAthena->GamePhase > EAthenaGamePhase::Warmup)
 				{
+					auto SendMatchReport = [&](AFortPlayerControllerAthena* MatchPlayerControllerAthena) -> void
+						{
+							UAthenaPlayerMatchReport* PlayerMatchReport = MatchPlayerControllerAthena->MatchReport;
+							AFortPlayerStateAthena* MatchPlayerStateAthena = Cast<AFortPlayerStateAthena>(MatchPlayerControllerAthena->PlayerState);
+
+							if (PlayerMatchReport && MatchPlayerStateAthena)
+							{
+								if (PlayerMatchReport->bHasTeamStats)
+								{
+									FAthenaMatchTeamStats& TeamStats = PlayerMatchReport->TeamStats;
+									TeamStats.Place = GameStateAthena->TeamsLeft;
+									TeamStats.TotalPlayers = GameStateAthena->TotalPlayers;
+
+									MatchPlayerControllerAthena->ClientSendTeamStatsForPlayer(TeamStats);
+								}
+
+								if (PlayerMatchReport->bHasMatchStats)
+								{
+									FAthenaMatchStats& MatchStats = PlayerMatchReport->MatchStats;
+									//MatchStats
+
+									MatchPlayerControllerAthena->ClientSendMatchStatsForPlayer(MatchStats);
+								}
+
+								if (PlayerMatchReport->bHasRewards)
+								{
+									FAthenaRewardResult& EndOfMatchResults = PlayerMatchReport->EndOfMatchResults;
+									EndOfMatchResults.LevelsGained = 5;
+									EndOfMatchResults.BookLevelsGained = 10;
+									EndOfMatchResults.TotalSeasonXpGained = 15;
+									EndOfMatchResults.TotalBookXpGained = 20;
+									EndOfMatchResults.PrePenaltySeasonXpGained = 25;
+
+									MatchPlayerControllerAthena->ClientSendEndBattleRoyaleMatchForPlayer(true, EndOfMatchResults);
+								}
+
+								MatchPlayerStateAthena->Place = GameStateAthena->TeamsLeft;
+								MatchPlayerStateAthena->OnRep_Place();
+
+								FN_LOG(LogPlayerController, Log, "SendMatchReport for Player: [%s], Place: [%i]", MatchPlayerStateAthena->GetPlayerName().ToString().c_str(), MatchPlayerStateAthena->Place);
+							}
+						};
+
+
 					for (int32 i = 0; i < GameStateAthena->Teams.Num(); i++)
 					{
 						AFortTeamInfo* TeamInfo = GameStateAthena->Teams[i];
 						if (!TeamInfo) continue;
 
-						if (TeamInfo->Team != KillerPlayerState->TeamIndex)
+						if (TeamInfo->Team != PlayerStateAthena->TeamIndex)
 							continue;
 
+						bool bIsTeamAlive = false;
 						for (int32 j = 0; j < TeamInfo->TeamMembers.Num(); j++)
 						{
 							AFortPlayerControllerAthena* TeamMember = Cast<AFortPlayerControllerAthena>(TeamInfo->TeamMembers[j]);
-							if (!TeamMember) continue;
+							if (!TeamMember || (TeamMember == PlayerControllerAthena)) continue;
 
-							AFortPlayerStateAthena* TeamMemberPlayerState = Cast<AFortPlayerStateAthena>(TeamMember->PlayerState);
-							if (!TeamMemberPlayerState) continue;
+							AFortPlayerPawn* TeamMemberPlayerPawn = Cast<AFortPlayerPawn>(TeamMember->MyFortPawn);
+							if (!TeamMemberPlayerPawn || TeamMemberPlayerPawn->bIsDying) continue;
 
-							TeamMemberPlayerState->Place = GameStateAthena->TeamsLeft;
-							TeamMemberPlayerState->OnRep_Place();
+							bIsTeamAlive = true;
+							break;
+						}
 
-							TeamMember->ClientNotifyWon(KillerPawn, KillerWeaponItemDefinition, DeathCause);
-							TeamMember->ClientNotifyTeamWon(KillerPawn, KillerWeaponItemDefinition, DeathCause);
-
-							UAthenaGadgetItemDefinition* VictoryCrown = StaticFindObject<UAthenaGadgetItemDefinition>(L"/VictoryCrownsGameplay/Items/AGID_VictoryCrown.AGID_VictoryCrown");
-
-							if (VictoryCrown)
+						if (!bIsTeamAlive)
+						{
+							for (int32 j = 0; j < TeamInfo->TeamMembers.Num(); j++)
 							{
-								int32 ItemQuantity = UFortKismetLibrary::K2_GetItemQuantityOnPlayer(TeamMember, VictoryCrown, FGuid());
+								AFortPlayerControllerAthena* TeamMember = Cast<AFortPlayerControllerAthena>(TeamInfo->TeamMembers[j]);
+								if (!TeamMember) continue;
 
-								if (ItemQuantity <= 0)
-									UFortKismetLibrary::K2_GiveItemToPlayer(TeamMember, VictoryCrown, FGuid(), 1, false);
+								SendMatchReport(TeamMember);
 							}
 						}
+
+						FN_LOG(LogPlayerController, Log, "CheckIfTeamAliveForSendMatchReport bIsTeamAlive: [%i]", bIsTeamAlive);
 						break;
+					}
+
+					if (GameStateAthena->TeamsLeft == 1 && KillerPlayerState && !bMatchEnded)
+					{
+						for (int32 i = 0; i < GameStateAthena->Teams.Num(); i++)
+						{
+							AFortTeamInfo* TeamInfo = GameStateAthena->Teams[i];
+							if (!TeamInfo) continue;
+
+							if (TeamInfo->Team != KillerPlayerState->TeamIndex)
+								continue;
+
+							for (int32 j = 0; j < TeamInfo->TeamMembers.Num(); j++)
+							{
+								AFortPlayerControllerAthena* TeamMember = Cast<AFortPlayerControllerAthena>(TeamInfo->TeamMembers[j]);
+								if (!TeamMember) continue;
+
+								AFortPlayerStateAthena* TeamMemberPlayerState = Cast<AFortPlayerStateAthena>(TeamMember->PlayerState);
+								if (!TeamMemberPlayerState) continue;
+
+								TeamMemberPlayerState->Place = GameStateAthena->TeamsLeft;
+								TeamMemberPlayerState->OnRep_Place();
+
+								TeamMember->ClientNotifyWon(KillerPawn, KillerWeaponItemDefinition, DeathCause);
+								TeamMember->ClientNotifyTeamWon(KillerPawn, KillerWeaponItemDefinition, DeathCause);
+
+								UAthenaGadgetItemDefinition* VictoryCrown = StaticFindObject<UAthenaGadgetItemDefinition>(L"/VictoryCrownsGameplay/Items/AGID_VictoryCrown.AGID_VictoryCrown");
+
+								if (VictoryCrown)
+								{
+									int32 ItemQuantity = UFortKismetLibrary::K2_GetItemQuantityOnPlayer(TeamMember, VictoryCrown, FGuid());
+
+									if (ItemQuantity <= 0)
+										UFortKismetLibrary::K2_GiveItemToPlayer(TeamMember, VictoryCrown, FGuid(), 1, false);
+								}
+
+								SendMatchReport(TeamMember);
+							}
+							break;
+						}
 					}
 				}
 			}
@@ -202,21 +297,42 @@ namespace PlayerController
 
 	void ServerReadyToStartMatch(AFortPlayerController* PlayerController)
 	{
-#ifdef CHEATS
-		if (!PlayerController->CheatManager)
+		if (!PlayerController->bReadyToStartMatch)
 		{
-			UCheatManager* CheatManager = (UCheatManager*)UGameplayStatics::SpawnObject(UCheatManager::StaticClass(), PlayerController);
-
-			if (CheatManager)
+#ifdef CHEATS
+			if (!PlayerController->CheatManager)
 			{
-				PlayerController->CheatManager = CheatManager;
-				PlayerController->CheatManager->ReceiveInitCheatManager();
+				UCheatManager* CheatManager = Cast<UCheatManager>(UGameplayStatics::SpawnObject(UCheatManager::StaticClass(), PlayerController));
+
+				if (CheatManager)
+				{
+					PlayerController->CheatManager = CheatManager;
+					PlayerController->CheatManager->ReceiveInitCheatManager();
+				}
 			}
-		}
 #endif // CHEATS
 
-		UFortVehicleAimingWeaponComp;
-		AFortMountedTurret;
+			AFortPlayerControllerAthena* PlayerControllerAthena = Cast<AFortPlayerControllerAthena>(PlayerController);
+
+			if (PlayerControllerAthena)
+			{
+				if (!PlayerControllerAthena->MatchReport)
+				{
+					UAthenaPlayerMatchReport* NewMatchReport = Cast<UAthenaPlayerMatchReport>(UGameplayStatics::SpawnObject(UAthenaPlayerMatchReport::StaticClass(), PlayerControllerAthena));
+
+					NewMatchReport->bHasMatchStats = true;
+					NewMatchReport->bHasRewards = true;
+					NewMatchReport->bHasTeamStats = true;
+
+					PlayerControllerAthena->MatchReport = NewMatchReport;
+				}
+
+				if (!PlayerControllerAthena->MatchReport)
+				{
+					FN_LOG(LogPlayerController, Error, "[AFortPlayerController::ServerReadyToStartMatch] Failed to spawn MatchReport for PlayerController: %s", PlayerControllerAthena->GetName().c_str());
+				}
+			}
+		}
 
 		ServerReadyToStartMatchOG(PlayerController);
 	}
@@ -868,6 +984,8 @@ namespace PlayerController
 				PlayerPawn->SetMaxShield(100);
 				PlayerPawn->SetShield(0);
 				
+				FActiveGameplayEffect;
+
 				/*UFortAbilitySystemComponent* AbilitySystemComponent = PlayerStateAthena->AbilitySystemComponent;
 
 				if (AbilitySystemComponent)
@@ -897,460 +1015,171 @@ namespace PlayerController
 		AFortPlayerControllerAthena* PlayerControllerAthena = Cast<AFortPlayerControllerAthena>(ControllerComponent_Interaction->GetOwner());
 		if (!PlayerControllerAthena) return;
 
+		
+
+		UBlueprintGeneratedClass* GeneratedClass = StaticFindObject<UBlueprintGeneratedClass>(L"/Game/Athena/DrivableVehicles/Meatball/Meatball_Large/MeatballVehicle_L.MeatballVehicle_L_C");
+
+		if (ReceivingActor->IsA(GeneratedClass))
+		{
+			UFortVehicleSeatWeaponComponent* VehicleSeatWeaponComponent = *(UFortVehicleSeatWeaponComponent**)(__int64(ReceivingActor) + 0x1930);
+
+			if (VehicleSeatWeaponComponent)
+			{
+
+			}
+
+			/*for (UStruct* TempStruct = ReceivingActor->Class; TempStruct; TempStruct = TempStruct->Super)
+			{
+				FProperty* ChildProperties = static_cast<FProperty*>(TempStruct->ChildProperties);
+				if (!ChildProperties) continue;
+
+				while (ChildProperties)
+				{
+					FN_LOG(LogInit, Log, "ChildProperties->Name: %s, Offset: 0x%llx", ChildProperties->Name.ToString().c_str(), (unsigned long long)ChildProperties->Offset);
+
+					ChildProperties = (FProperty*)ChildProperties->Next;
+				}
+			}*/
+		}
+
 		ABuildingActor* BuildingActor = Cast<ABuildingActor>(ReceivingActor);
 
 		if (BuildingActor)
 		{
-			// HalalGS-19.10: LogInit: Info: ServerAttemptInteract called - ReceivingActor: Apollo_GasPump_Valet_C Artemis_PPR_5x5_GasStation_a_1bbbf69b.Artemis_PPR_5x5_GasStation_a.PersistentLevel.Apollo_GasPump_Valet_C_3
-
-			static auto BP_StationProp_ParentClass = StaticFindObject<UBlueprintGeneratedClass>(L"/Game/Building/ActorBlueprints/Stations/BP_StationProp_Parent.BP_StationProp_Parent_C");
-
-			if (BuildingActor->IsA(BP_StationProp_ParentClass))
-			{
-				UFortNonPlayerConversationParticipantComponent* NonPlayerConversationComponent = *(UFortNonPlayerConversationParticipantComponent**)(__int64(BuildingActor) + 0xDA8);
-
-				if (NonPlayerConversationComponent)
-				{
-					NonPlayerConversationComponent->ClientStartConversation(NonPlayerConversationComponent->ConversationEntryTag);
-
-					UCampsiteConversationComponent;
-
-					//NonPlayerConversationComponent->StartConversation(NonPlayerConversationComponent->ConversationEntryTag, PlayerControllerAthena, BuildingActor);
-				}
-
-				/*for (UStruct* TempStruct = BuildingActor->Class; TempStruct; TempStruct = TempStruct->Super)
-				{
-					FProperty* ChildProperties = static_cast<FProperty*>(TempStruct->ChildProperties);
-					if (!ChildProperties) continue;
-
-					while (ChildProperties)
-					{
-						FN_LOG(LogInit, Log, "ChildProperties->Name: %s, Offset: 0x%llx", ChildProperties->Name.ToString().c_str(), (unsigned long long)ChildProperties->Offset);
-
-						ChildProperties = (FProperty*)ChildProperties->Next;
-					}
-				}*/
-			}
+			/*
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: UberGraphFrame, Offset: 0x1910
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: ImminentCollisionComponent, Offset: 0x1918
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: FuelComponent, Offset: 0x1920
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Snow Landscape Interaction System, Offset: 0x1928
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: FortVehicleSeatWeapon, Offset: 0x1930
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: MeatballCollisionBody, Offset: 0x1938
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: FortCollisionAudioHitPlayer, Offset: 0x1940
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: P_Meatball_Muzzle_Flash, Offset: 0x1948
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: P_Meatball_Boost_Ready, Offset: 0x1950
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: P_Meatball_Boost_Ready1, Offset: 0x1958
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Dirt_Cascade, Offset: 0x1960
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: AudioController, Offset: 0x1968
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: P_Boost_R, Offset: 0x1970
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: P_Boost_L, Offset: 0x1978
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: P_BoostEnd_R, Offset: 0x1980
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: P_BoostEnd_L, Offset: 0x1988
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: OverlapVolume, Offset: 0x1990
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Timeline_0_NewTrack_0_7906805348581A63C02104AD8E4AFD45, Offset: 0x1998
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Timeline_0__Direction_7906805348581A63C02104AD8E4AFD45, Offset: 0x199c
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Timeline_0, Offset: 0x19a0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: BoostTimeline_Rumble_FA04381447AE3F527025F494D33449BD, Offset: 0x19a8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: BoostTimeline_FoV_FA04381447AE3F527025F494D33449BD, Offset: 0x19ac
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: BoostTimeline__Direction_FA04381447AE3F527025F494D33449BD, Offset: 0x19b0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: BoostTimeline, Offset: 0x19b8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: LocalPlayerPawn, Offset: 0x19c0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: DriverPawn, Offset: 0x19c8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: DrivingPlayerController_0, Offset: 0x19d0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: LastHitPlayer, Offset: 0x19d8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: PassengerPawn, Offset: 0x19e0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: PassengerPlayerController, Offset: 0x19e8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: PassengerPawns, Offset: 0x19f0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: HitPickaxePawn, Offset: 0x1a00
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: SpecialHonk, Offset: 0x1a08
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: SpecialHonkTimer, Offset: 0x1a10
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnDeathSound, Offset: 0x1a18
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: DamagedEffect, Offset: 0x1a20
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: AudioSpark, Offset: 0x1a28
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: InWaterFX, Offset: 0x1a30
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: InWaterLoop, Offset: 0x1a38
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: WaterEnterSound, Offset: 0x1a40
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: InWaterLoopSound, Offset: 0x1a48
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: CheckWaterTimer, Offset: 0x1a50
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: WaterSplashBurstFX, Offset: 0x1a58
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: InWaterLoopingFX, Offset: 0x1a60
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: VehicleDestroyedFX, Offset: 0x1a68
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: SavedDamageForMID, Offset: 0x1a70
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: BodyMID, Offset: 0x1a78
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: RumbleIntensity, Offset: 0x1a80
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: DriverCameraShake_0, Offset: 0x1a88
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: PassengerCameraShake, Offset: 0x1a90
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Driver_CameraShake, Offset: 0x1a98
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Passenger_CameraShake, Offset: 0x1aa0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: VehicleMaxSpeed_DESIGNTIME, Offset: 0x1aa8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: MinForwardSpeedForSideWake, Offset: 0x1aac
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Turn Bias, Offset: 0x1ab0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnBoostEndSound, Offset: 0x1ab8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: BoostSound, Offset: 0x1ac0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: BoostFailedSound, Offset: 0x1ac8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: SmallJoltCameraShake, Offset: 0x1ad0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: WaterImpactCameraShake, Offset: 0x1ad8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: MinImpactToShake, Offset: 0x1ae0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: CameraShakeWaterImpact, Offset: 0x1ae8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: InAirSmoothed, Offset: 0x1af0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: SmoothedSpringCompression, Offset: 0x1af4
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: ScreenShakeFrequencyMin, Offset: 0x1af8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: ScreenShakeYawFrequencyMultipier, Offset: 0x1afc
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: PassengerCameraShakeMultiplier, Offset: 0x1b00
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Current_MaxSpringCompression, Offset: 0x1b04
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: SpringFudgeValue, Offset: 0x1b08
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: NormalizedSpeed, Offset: 0x1b0c
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: CameraShakeSpeedCurvePow, Offset: 0x1b10
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: AmplitudeMin, Offset: 0x1b14
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: AmplitudeMax, Offset: 0x1b18
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: BoostingCameraShake, Offset: 0x1b1c
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: FluidSimBP, Offset: 0x1b20
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: WaterForceSettings, Offset: 0x1b28
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: BoostCameraActive, Offset: 0x1b98
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: BoostRumbleIntensity, Offset: 0x1b9c
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: MaxBoostFOV, Offset: 0x1ba0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: DriverGE, Offset: 0x1ba8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: PassengerGE, Offset: 0x1bb0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: IsLegendary, Offset: 0x1bb8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: GC_VehicleScreenDrips, Offset: 0x1bbc
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: WaterEntryMaxMagnitude, Offset: 0x1bc4
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Forward_Intensity, Offset: 0x1bc8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Right_Intensity, Offset: 0x1bcc
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: CurrentLazyUpdateVector, Offset: 0x1bd0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: BoostSoundWrapPriority, Offset: 0x1bdc
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: NormalizedForwardSpeedKmh, Offset: 0x1be0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: EngineOnSound, Offset: 0x1be8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: EngineOffSound, Offset: 0x1bf0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: IsInAirMultiplier, Offset: 0x1bf8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: BoostGuageMIC, Offset: 0x1c00
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: IsBoosting, Offset: 0x1c08
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Boost, Offset: 0x1c0c
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: DamageValue, Offset: 0x1c10
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: PickaxeImpulseStrength, Offset: 0x1c14
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Row_ShouldLaunchPlayer, Offset: 0x1c18
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: GC_HitPlayer, Offset: 0x1c40
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: GC_ParamsEmpty, Offset: 0x1c48
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: GC_HitFiend, Offset: 0x1d08
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: HitBuildingActor, Offset: 0x1d10
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: DestructionAngle, Offset: 0x1d18
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: SpeedImpulsePlayerMulti, Offset: 0x1d1c
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: MinSpeedToLaunchPlayer, Offset: 0x1d20
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: ShouldLaunchPlayer, Offset: 0x1d24
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Row_PickaxeImpulseStrength, Offset: 0x1d28
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Row_MinSpeedLaunchPlayer, Offset: 0x1d50
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Row_SpeedImpulseMultiplier, Offset: 0x1d78
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: MinSpeedToDamage, Offset: 0x1da0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Row_MinSpeedToDamage, Offset: 0x1da8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: PickaxeForwardImpulseZ_Multiplier, Offset: 0x1dd0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: PickaxeImpulse, Offset: 0x1dd4
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: ShouldPickaxeImpulse, Offset: 0x1de0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Row_ShouldPickaxeImpulse, Offset: 0x1de8
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Row_PickaxeImpulseZ_Multiplier, Offset: 0x1e10
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnLand_CameraShake, Offset: 0x1e38
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnLandCameraShake, Offset: 0x1e40
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: DamageOnLandTimer, Offset: 0x1e48
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: ShouldDamageOnLand, Offset: 0x1e50
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: Row_ShouldDamageOnLand, Offset: 0x1e58
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: LandCameraSpeedForShakes, Offset: 0x1e80
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: LandCameraMaxFrequency, Offset: 0x1e84
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: LandCameraMinFrequency, Offset: 0x1e88
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: LandCameraRot_Amp, Offset: 0x1e8c
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: LandCameraY_Amp, Offset: 0x1e90
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: LandCameraZ_Amp, Offset: 0x1e94
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: LandCameraShakeFalloff, Offset: 0x1e98
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: LandDamageFrequency, Offset: 0x1e9c
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: LandDamageTimer, Offset: 0x1ea0
+				HalalGS-19.10: LogInit: Info: ChildProperties->Name: BoatDamageOnLand, Offset: 0x1ea8
+			*/
 		}
-
-		/*
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: UberGraphFrame, Offset: 0xdb8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: P_TableLightIdle, Offset: 0xdc0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: P_UpgradeFX, Offset: 0xdc8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: TopCollision, Offset: 0xdd0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: TableCollision, Offset: 0xdd8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: PostCollision, Offset: 0xde0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BaseCollision, Offset: 0xde8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: WobbleTimeline_WobbleOverTime_6C787AA044BAB89E1FDAF5A5520714F2, Offset: 0xdf0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: WobbleTimeline__Direction_6C787AA044BAB89E1FDAF5A5520714F2, Offset: 0xdf4
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: WobbleTimeline, Offset: 0xdf8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ServiceSuccessSound, Offset: 0xe00
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: InitialRelativeRotation, Offset: 0xe08
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: UberGraphFrame, Offset: 0xd90
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: Station_Ambient, Offset: 0xd98
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BuildingActorLootDropOnDeathComponent, Offset: 0xda0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: NonPlayerConversationComponent, Offset: 0xda8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: InteractionSpeedOverride, Offset: 0xdb0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: StartAmbientOnBeginPlay, Offset: 0xdb4
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: UseSpecialActorComponent, Offset: 0xd48
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: SpecialActorComponentClass, Offset: 0xd70
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: CustomInteractionWidget, Offset: 0xd78
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AnalyticsTags, Offset: 0xc78
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bSuppressSimpleInteractionWidgetForTouch, Offset: 0xc98
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCanBeMarked, Offset: 0xc98
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bBlockMarking, Offset: 0xc98
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bUseDamageSet, Offset: 0xc98
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: MarkerDisplay, Offset: 0xca0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: MarkerPositionOffset, Offset: 0xd38
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsBuildingVolume, Offset: 0xd44
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bDoNotBlockMarkerTraceWhenOverlappingPlayer, Offset: 0xd44
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: TimeOfDayControlledLightDataArray, Offset: 0xc60
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAutoAssignNavProperties, Offset: 0xc58
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: TextureData, Offset: 0x688
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: StaticMesh, Offset: 0x6a8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AlternateMeshes, Offset: 0x6b0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bForceReplicateSubObjects, Offset: 0x6c0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNoPhysicsCollision, Offset: 0x6c0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNoCameraCollision, Offset: 0x6c0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNoPawnCollision, Offset: 0x6c0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNoAIPawnCollision, Offset: 0x6c0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bBlocksCeilingPlacement, Offset: 0x6c0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bBlocksAttachmentPlacement, Offset: 0x6c0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bUsePhysicalSurfaceForFootstep, Offset: 0x6c0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bRandomYawOnPlacement, Offset: 0x6c1
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bRandomScaleOnPlacement, Offset: 0x6c1
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bClearMIDWhenReturningToUndamagedState, Offset: 0x6c1
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: NumFrameSubObjects, Offset: 0x6c2
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ResourceType, Offset: 0x6c3
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: RandomScaleRange, Offset: 0x6c4
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DestructionLootTierGroup, Offset: 0x6cc
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: WindSpeedCurve, Offset: 0x6d8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: WindPannerSpeedCurve, Offset: 0x700
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: WindAudio, Offset: 0x728
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ShieldBuffMaterialParamValue1, Offset: 0x750
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ShieldBuffMaterialParamValue2, Offset: 0x754
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AnimatingDistanceFieldSelfShadowBias, Offset: 0x758
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AnimatingSubObjects, Offset: 0x75c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: PlayerGridSnapSize, Offset: 0x760
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AltMeshIdx, Offset: 0x764
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAllowBuildingCheat, Offset: 0x7b8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bMirrored, Offset: 0x7b8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNoCollision, Offset: 0x7b8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bSupportsRepairing, Offset: 0x7b8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bHiddenDueToTrapPlacement, Offset: 0x7b8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAttachmentPlacementBlockedFront, Offset: 0x7b8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAttachmentPlacementBlockedBack, Offset: 0x7b8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsForPreviewing, Offset: 0x7b8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bUnderConstruction, Offset: 0x7b9
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bUnderRepair, Offset: 0x7b9
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsInitiallyBuilding, Offset: 0x7b9
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCameraOnlyCollision, Offset: 0x7b9
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNoWeaponCollision, Offset: 0x7b9
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNoRangedWeaponCollision, Offset: 0x7b9
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNoProjectileCollision, Offset: 0x7b9
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bDoNotBlockInteract, Offset: 0x7b9
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNeedsMIDsForCreative, Offset: 0x7ba
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAllowResourceDrop, Offset: 0x7ba
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bHideOnDeath, Offset: 0x7ba
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bPlayDestructionEffects, Offset: 0x7ba
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bSkipConstructionSounds, Offset: 0x7ba
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bSupportedDirectly, Offset: 0x7ba
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bForciblyStructurallySupported, Offset: 0x7bb
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bRegisterWithStructuralGrid, Offset: 0x7bb
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCurrentlyBeingEdited, Offset: 0x7bb
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAllowWeakSpots, Offset: 0x7bb
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bUseComplexForWeakSpots, Offset: 0x7bb
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCanSpawnAtLowerQuotaLevels, Offset: 0x7bb
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNeedsWindMaterialParameters, Offset: 0x7bc
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bPlayBounce, Offset: 0x7bc
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bPropagateBounce, Offset: 0x7bc
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bPropagatesBounceEffects, Offset: 0x7bc
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNeedsDamageOverlay, Offset: 0x7bc
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bDeriveCurieIdentifierFromResourceType, Offset: 0x7bc
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAllowCustomMaterial, Offset: 0x7bc
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bUseSingleMeshCullDistance, Offset: 0x7bd
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: SavedDirectlySupportedStatus, Offset: 0x7be
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: MaximumQuotaLevelBound, Offset: 0x7bf
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BuildingAnimation, Offset: 0x7c0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: CurAnimSubObjectNum, Offset: 0x7c1
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: CurAnimSubObjectTargetNum, Offset: 0x7c2
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ActorIndexInFoundation, Offset: 0x7c4
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BounceData, Offset: 0x7c8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DestroyedTime, Offset: 0x7f8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: InfluenceMapWeight, Offset: 0x7fc
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BASEEffectMeshComponent, Offset: 0x808
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: NavObstacles, Offset: 0x810
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BuildingPlacementDistance, Offset: 0x830
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ReplicatedDrawScale3D, Offset: 0x83c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: EditorOnlyInstanceMaterialParameters, Offset: 0x848
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: StaticMeshComponent, Offset: 0x888
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: WeakPointComponent, Offset: 0x890
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BaseMaterial, Offset: 0x898
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnConstructionComplete, Offset: 0x8a0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: MinimalReplicationProxy, Offset: 0x8b0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DestructionLootTierChosenQuotaInfo, Offset: 0x8b4
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DestructionLootTierKey, Offset: 0x8c0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BuildingResourceAmountOverride, Offset: 0x8c8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: MaxResourcesToSpawn, Offset: 0x8d8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: IntenseWindMaterials, Offset: 0x8f0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ColorOverrides, Offset: 0x900
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: RVTHeightOverride, Offset: 0x940
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: RVTColorOverride, Offset: 0x948
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BreakEffect, Offset: 0x950
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DeathParticles, Offset: 0x958
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DeathParticlesInst, Offset: 0x980
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DeathParticleSocketName, Offset: 0x988
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DeathSound, Offset: 0x990
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ConstructedEffect, Offset: 0x998
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: RandomDayphaseFXList, Offset: 0x9a0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ConstructionAudioComponent, Offset: 0x9b0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: CachedDestructionInstigator, Offset: 0x9b8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DamageOverlayComponent, Offset: 0x9c0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DamageAmountStart, Offset: 0x9c8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: LastDamageAmount, Offset: 0x9cc
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: LastDamageHitImpulseDir, Offset: 0x9d0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: CachedAnimatingStaticMeshes, Offset: 0x9e0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnRepairBuildingStarted, Offset: 0xa50
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnRepairBuildingFinished, Offset: 0xa60
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: EditModePatternData, Offset: 0xa70
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: UndermineGroup, Offset: 0xa78
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: LogicalBuildingIdx, Offset: 0xa7c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AnimatingMaterialMappings, Offset: 0xa80
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DamagedButNotAnimatingMaterialMappings, Offset: 0xa90
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: EditModeSupportClass, Offset: 0xaa0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: EditModeSupport, Offset: 0xaa8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: HealthToAutoBuild, Offset: 0xab0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AccumulatedAutoBuildTime, Offset: 0xab4
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BuildingReplacementType, Offset: 0xab8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ReplacementDestructionReason, Offset: 0xab9
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: CurBuildingAnimType, Offset: 0xaba
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DamageVisualsState, Offset: 0xabb
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: CurBuildProgress, Offset: 0xabc
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OutwardMotionMagnitude, Offset: 0xac0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: CurBuildingAnimStartTime, Offset: 0xac4
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BlueprintMICs, Offset: 0xac8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BlueprintMIDs, Offset: 0xad8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BlueprintMeshComp, Offset: 0xae8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: EditingPlayer, Offset: 0xaf0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BuildingAttachmentPointOffset, Offset: 0xb18
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BuildingAttachmentRadius, Offset: 0xb24
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BuildingAttachmentSlot, Offset: 0xb28
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BuildingAttachmentType, Offset: 0xb29
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BuildingPlacementType, Offset: 0xb2a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: LastStructuralCheck, Offset: 0xb2b
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ParentActorToAttachTo, Offset: 0xb30
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AttachedBuildingActors, Offset: 0xb38
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BuildingActorsAttachedTo, Offset: 0xb48
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: InvalidTrapTagQuery, Offset: 0xb58
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnTrapPlacementChanged, Offset: 0xba0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnReplacementDestruction, Offset: 0xbb0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AttachmentPlacementBlockingActors, Offset: 0xbc0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: Foundation, Offset: 0xbd0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DamagerOwner, Offset: 0xbf0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: RelevantBASE, Offset: 0xbf8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: LastRelevantBASE, Offset: 0xc08
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ProxyGameplayCueDamage, Offset: 0xc28
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: MyGuid, Offset: 0x2f8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: SavedHealthPct, Offset: 0x308
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OwnerPersistentID, Offset: 0x30c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bUseMinLifeSpan, Offset: 0x30e
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AreaClass, Offset: 0x310
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: NavigationLinksClass, Offset: 0x338
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: InitialOverlappingVehicles, Offset: 0x350
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: CurrentBuildingLevel, Offset: 0x360
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: MaximumBuildingLevel, Offset: 0x364
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BuildingAttributeSetClass, Offset: 0x368
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BuildingAttributeSet, Offset: 0x370
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DamageAttributeSet, Offset: 0x378
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ReplicatedBuildingAttributeSet, Offset: 0x380
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: MaxHealthInitializationValue, Offset: 0x388
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AttributeInitKeys, Offset: 0x38c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AttributeInitLevelSource, Offset: 0x3ac
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AbilitySystemComponentCreationPolicy, Offset: 0x3ad
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: PrimarySurfaceType, Offset: 0x3ae
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: WeaponResponseType, Offset: 0x3af
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AbilitySystemComponent, Offset: 0x3c8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ReplicatedAbilitySystemComponent, Offset: 0x3d0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: PendingDamageImpactCues, Offset: 0x3d8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: HealthBarIndicatorWidth, Offset: 0x3e8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: HealthBarIndicatorVerticalOffset, Offset: 0x3ec
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: HealthBarIndicatorSocketName, Offset: 0x3f0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: HealthBarIndicator, Offset: 0x3f8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: HealthBarIndicatorDifficultyRating, Offset: 0x400
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ForceMetadataRelevant, Offset: 0x404
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: LastMetadataRelevant, Offset: 0x405
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DynamicBuildingPlacementType, Offset: 0x406
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: NavigationObstacleOverride, Offset: 0x407
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: IncomingDamageFilterQuery, Offset: 0x408
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsInvulnerable, Offset: 0x450
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bPreviewBuildingActor, Offset: 0x450
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bPlayedDying, Offset: 0x450
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bHasRegisteredActorStateAtLeastOnce, Offset: 0x450
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bDirtyForLevelRecordSave, Offset: 0x450
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bSavedMetaPropertiesProcessed, Offset: 0x450
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bUpgradeUsesSameClass, Offset: 0x450
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bDisplayLevelInInfoWidget, Offset: 0x451
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAllowUpgradeRegardlessOfPlayerBuildLevel, Offset: 0x451
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAlwaysExportNavRelevantComponent, Offset: 0x451
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bDisplayDamageNumbersInAthena, Offset: 0x451
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bUseFortHealthBarIndicator, Offset: 0x451
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bSurpressHealthBar, Offset: 0x451
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCreateVerboseHealthLogs, Offset: 0x451
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsIndestructibleForTargetSelection, Offset: 0x451
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bPropagateDrawDistanceOnAdditionalComponent, Offset: 0x452
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCreatePhysicsObjectComponent, Offset: 0x452
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsGameFrameworkComponentReceiver, Offset: 0x452
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bDestroyed, Offset: 0x452
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bPersistToWorld, Offset: 0x452
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bRefreshFullSaveDataBeforeZoneSave, Offset: 0x452
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bBeingDragged, Offset: 0x452
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bRotateInPlaceGame, Offset: 0x452
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bBeingOneHitDisassembled, Offset: 0x453
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bBoundsAreInvalidForMelee, Offset: 0x453
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsNavigationModifier, Offset: 0x453
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bBlockNavigationLinks, Offset: 0x453
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCanExportNavigationCollisions, Offset: 0x453
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCanExportNavigationObstacle, Offset: 0x453
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bMirrorNavLinksX, Offset: 0x453
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bMirrorNavLinksY, Offset: 0x454
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIgnoreMoveGoalCollisionRadius, Offset: 0x454
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bForceDisableRootNavigationRelevance, Offset: 0x454
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bForceAutomationPass, Offset: 0x454
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bForceAutomationPass_NavmeshOnTop, Offset: 0x454
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bForceAutomationPass_SmashableFlat, Offset: 0x454
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCanBeSavedInCreativeVolume, Offset: 0x454
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsNavigationRelevant, Offset: 0x454
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsNavigationIndestructible, Offset: 0x455
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bBlockNavLinksInCell, Offset: 0x455
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bUseHotSpotAsMoveGoalReplacement, Offset: 0x455
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bHasCustomAttackLocation, Offset: 0x455
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bWorldReadyCalled, Offset: 0x455
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bBeingRotatedOrScaled, Offset: 0x455
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bBeingTranslated, Offset: 0x455
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bRotateInPlaceEditor, Offset: 0x455
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bEditorPlaced, Offset: 0x456
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bPlayerPlaced, Offset: 0x456
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bShouldTick, Offset: 0x456
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bUsesDayPhaseChange, Offset: 0x456
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsDynamic, Offset: 0x456
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsDynamicOnDedicatedServer, Offset: 0x456
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsDedicatedServer, Offset: 0x456
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bUseTickManager, Offset: 0x456
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsMovable, Offset: 0x457
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bRegisteredForDayPhaseChange, Offset: 0x457
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bForceDamagePing, Offset: 0x457
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bDestroyFoliageWhenPlaced, Offset: 0x457
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bObstructTrapTargeting, Offset: 0x457
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bInstantDeath, Offset: 0x457
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bDoNotBlockBuildings, Offset: 0x457
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bForceBlockBuildings, Offset: 0x458
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bDestroyOnPlayerBuildingPlacement, Offset: 0x458
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bUseCentroidForBlockBuildingsCheck, Offset: 0x458
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bPredictedBuildingActor, Offset: 0x458
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIgnoreCollisionWithCriticalActors, Offset: 0x458
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsPlayerBuildable, Offset: 0x458
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bFireBuiltAndDestroyedEvents, Offset: 0x458
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bStructurallySupportOverlappingActors, Offset: 0x458
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAllowInteract, Offset: 0x459
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bShowFirstInteractPrompt, Offset: 0x459
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bShowSecondInteractPrompt, Offset: 0x459
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAllowHostileBlueprintInteraction, Offset: 0x459
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bEndAbilitiesOnDeath, Offset: 0x459
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAlwaysUseNetCullDistanceSquaredForRelevancy, Offset: 0x459
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bHighlightDirty, Offset: 0x459
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCollisionBlockedByPawns, Offset: 0x459
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAllowTeamDamage, Offset: 0x45a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bShouldClearMarkerOnInteract, Offset: 0x45a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIgnoreAffiliationInteractHighlight, Offset: 0x45a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bSuppressInteractionWidget, Offset: 0x45a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAutoReleaseCurieContainerOnDestroyed, Offset: 0x45a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BuildingType, Offset: 0x45b
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: Team, Offset: 0x45c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: TeamIndex, Offset: 0x45d
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ConstTags, Offset: 0x460
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: StaticGameplayTags, Offset: 0x480
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: InteractionText, Offset: 0x4a0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: CanInteractPerformNativeActionTag, Offset: 0x4b8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnDied, Offset: 0x4c0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnDamaged, Offset: 0x4d0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AssociatedMissionParam, Offset: 0x4e0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OriginatingPlacementActor, Offset: 0x4e8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BRMinDrawDistance, Offset: 0x4f0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BRMaxDrawDistance, Offset: 0x4f4
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: StWMinDrawDistance, Offset: 0x4f8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: StWMaxDrawDistance, Offset: 0x4fc
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnInteract, Offset: 0x500
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: InteractionSpeed, Offset: 0x510
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DataVersion, Offset: 0x568
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: LastTakeHitTimeTimeout, Offset: 0x56c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: PlayHitSound, Offset: 0x570
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: CullDistance, Offset: 0x578
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: SnapGridSize, Offset: 0x57c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: VertSnapGridSize, Offset: 0x580
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: SnapOffset, Offset: 0x584
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: CentroidOffset, Offset: 0x590
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BaseLocToPivotOffset, Offset: 0x59c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: CustomState, Offset: 0x5a8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ComponentTypesWhitelistedForReplication, Offset: 0x5b8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OverridePrimitivesToExcludeFoliage, Offset: 0x5c8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: HotSpotConfig, Offset: 0x5d8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnBuildingHealthChanged, Offset: 0x5e0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnActorHealthChanged, Offset: 0x5f0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: SavedActorGuid, Offset: 0x600
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BaselineScale, Offset: 0x610
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AccumulatedDeltaSinceLastVisualsTick, Offset: 0x614
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ProjectileMovementComponent, Offset: 0x618
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnTeamIndexChangedDelegate, Offset: 0x620
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: LifespanAfterDeath, Offset: 0x630
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: PhysicsObjectPresetTag, Offset: 0x634
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: PhysicsObjectPhysicalDataTag, Offset: 0x63c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: PhysicsObjectBuoyancyDataTag, Offset: 0x644
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: PhysicsObjectImpactDamageDataTag, Offset: 0x64c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIgnoreDeterminePhysicsObjectImpactDataAutomatically, Offset: 0x654
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: PhysicsObjectComponent, Offset: 0x658
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ActorTemplateID, Offset: 0x660
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: PlaysetPackagePathName, Offset: 0x664
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: PrimaryActorTick, Offset: 0x28
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNetTemporary, Offset: 0x58
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNetStartup, Offset: 0x58
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bOnlyRelevantToOwner, Offset: 0x58
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAlwaysRelevant, Offset: 0x58
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bReplicateMovement, Offset: 0x58
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCallPreReplication, Offset: 0x58
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCallPreReplicationForReplay, Offset: 0x58
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bHidden, Offset: 0x58
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bTearOff, Offset: 0x59
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bForceNetAddressable, Offset: 0x59
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bExchangedRoles, Offset: 0x59
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNetLoadOnClient, Offset: 0x59
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bNetUseOwnerRelevancy, Offset: 0x59
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bRelevantForNetworkReplays, Offset: 0x59
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bRelevantForLevelBounds, Offset: 0x59
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bReplayRewindable, Offset: 0x59
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAllowTickBeforeBeginPlay, Offset: 0x5a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAutoDestroyWhenFinished, Offset: 0x5a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCanBeDamaged, Offset: 0x5a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bBlockInput, Offset: 0x5a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCollideWhenPlacing, Offset: 0x5a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bFindCameraComponentWhenViewTarget, Offset: 0x5a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bGenerateOverlapEventsDuringLevelStreaming, Offset: 0x5a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIgnoresOriginShifting, Offset: 0x5a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bEnableAutoLODGeneration, Offset: 0x5b
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bIsEditorOnlyActor, Offset: 0x5b
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bActorSeamlessTraveled, Offset: 0x5b
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bReplicates, Offset: 0x5b
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bCanBeInCluster, Offset: 0x5b
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bAllowReceiveTickEventOnDedicatedServer, Offset: 0x5b
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bActorEnableCollision, Offset: 0x5c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: bActorIsBeingDestroyed, Offset: 0x5c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: UpdateOverlapsMethodDuringLevelStreaming, Offset: 0x5e
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: DefaultUpdateOverlapsMethodDuringLevelStreaming, Offset: 0x5f
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: RemoteRole, Offset: 0x60
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ReplicatedMovement, Offset: 0x64
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: InitialLifeSpan, Offset: 0x98
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: CustomTimeDilation, Offset: 0x9c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AttachmentReplication, Offset: 0xa8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: Owner, Offset: 0xe8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: NetDriverName, Offset: 0xf0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: Role, Offset: 0xf8
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: NetDormancy, Offset: 0xf9
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: SpawnCollisionHandlingMethod, Offset: 0xfa
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: AutoReceiveInput, Offset: 0xfb
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: InputPriority, Offset: 0xfc
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: InputComponent, Offset: 0x100
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: NetCullDistanceSquared, Offset: 0x108
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: NetTag, Offset: 0x10c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: NetUpdateFrequency, Offset: 0x110
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: MinNetUpdateFrequency, Offset: 0x114
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: NetPriority, Offset: 0x118
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: Instigator, Offset: 0x120
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: Children, Offset: 0x128
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: RootComponent, Offset: 0x138
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: RayTracingGroupId, Offset: 0x148
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: Layers, Offset: 0x150
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: ParentComponent, Offset: 0x160
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: Tags, Offset: 0x170
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnTakeAnyDamage, Offset: 0x180
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnTakePointDamage, Offset: 0x181
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnTakeRadialDamage, Offset: 0x182
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnActorBeginOverlap, Offset: 0x183
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnActorEndOverlap, Offset: 0x184
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnBeginCursorOver, Offset: 0x185
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnEndCursorOver, Offset: 0x186
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnClicked, Offset: 0x187
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnReleased, Offset: 0x188
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnInputTouchBegin, Offset: 0x189
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnInputTouchEnd, Offset: 0x18a
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnInputTouchEnter, Offset: 0x18b
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnInputTouchLeave, Offset: 0x18c
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnActorHit, Offset: 0x18d
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnDestroyed, Offset: 0x18e
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: OnEndPlay, Offset: 0x18f
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: InstanceComponents, Offset: 0x1f0
-			HalalGS-19.10: LogInit: Info: ChildProperties->Name: BlueprintCreatedComponents, Offset: 0x200
-		*/
-
-		ABuildingProp_ConversationCompatible;
 
 		FN_LOG(LogInit, Log, "ServerAttemptInteract called - ReceivingActor: %s", ReceivingActor->GetFullName().c_str());
 		

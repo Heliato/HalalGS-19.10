@@ -403,6 +403,8 @@ namespace Functions
 
 						GameModeAthena->AIDirector = AIDirector;
 						GameModeAthena->AIDirector->Activate();
+
+						FN_LOG(LogFunctions, Log, "Functions::InitializeAI - AIDirector: %s", AIDirector->GetFullName().c_str());
 					}
 				}
 			}
@@ -422,12 +424,15 @@ namespace Functions
 					AIGoalManager->OnRep_Owner();
 
 					GameModeAthena->AIGoalManager = AIGoalManager;
+
+					FN_LOG(LogFunctions, Log, "Functions::InitializeAI - AIGoalManager: %s", AIGoalManager->GetFullName().c_str());
 				}
 			}
 
 			// Setup AISettings
 			{
 				GameModeAthena->AISettings = PlaylistAthena->AISettings;
+				FN_LOG(LogFunctions, Log, "Functions::InitializeAI - AISettings: %s", PlaylistAthena->AISettings->GetFullName().c_str());
 			}
 
 			// Unhandled Exception: EXCEPTION_ACCESS_VIOLATION reading address 0x00000000000000d4

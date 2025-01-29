@@ -628,48 +628,42 @@ namespace Hooks
 
 			if (GetAsyncKeyState(VK_F6) & 0x1)
 			{
-				AFortGameStateAthena* GameStateAthena = Cast<AFortGameStateAthena>(Globals::GetGameState());
+				/*AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
 
-				if (GameStateAthena)
+				if (!PlayerController)
+					return;
+
+				AFortPlayerPawn* PlayerPawn = PlayerController->GetPlayerPawn();
+
+				if (!PlayerPawn)
+					return;
+
+				UWorld* World = PlayerController->GetWorld();
+
+				if (!World)
+					return;
+
+				UBlueprintGeneratedClass* BlueprintGeneratedClass = StaticLoadObject<UBlueprintGeneratedClass>(L"/Game/Athena/AI/Phoebe/BP_PlayerPawn_Athena_Phoebe.BP_PlayerPawn_Athena_Phoebe_C");
+				FVector SpawnLocation = PlayerPawn->K2_GetActorLocation();
+
+				AFortPlayerPawnAthena* PlayerPawnPhoebe = Cast<AFortPlayerPawnAthena>(World->SpawnActor(BlueprintGeneratedClass, &SpawnLocation));
+
+				if (PlayerPawnPhoebe)
 				{
-					UCurveTable* AthenaGameData = GameStateAthena->CurrentPlaylistInfo.BasePlaylist->GameData.Get();
-
-					if (!AthenaGameData)
-					{
-						AthenaGameData = GameStateAthena->AthenaGameDataTable;
-
-						if (!AthenaGameData)
-							AthenaGameData = StaticLoadObject<UCurveTable>(L"/Game/Balance/AthenaGameData.AthenaGameData");
-					}
-
-					if (AthenaGameData)
-					{
-						FName DefaultSafeZoneDamageName = UKismetStringLibrary::Conv_StringToName(L"Default.SafeZone.Damage");
-						FSimpleCurve* SimpleCurve = (FSimpleCurve*)AthenaGameData->FindCurve(DefaultSafeZoneDamageName, L"Functions::InitializeSafeZoneDamage");
-
-						if (SimpleCurve)
-						{
-							float Test = SimpleCurve->Eval(0);
-
-							FN_LOG(LogFunctions, Log, "Functions::InitializeSafeZoneDamage - First Result: %.2f", Test);
-
-							for (int32 i = 0; i < SimpleCurve->Keys.Num(); i++)
-							{
-								FSimpleCurveKey* SimpleCurveKey = &SimpleCurve->Keys[i];
-								if (!SimpleCurveKey) continue;
-
-								if (SimpleCurveKey->Time == 0.0f)
-								{
-									SimpleCurveKey->Value = 0.0f;
-								}
-							}
-
-							float Test2 = SimpleCurve->Eval(0);
-
-							FN_LOG(LogFunctions, Log, "Functions::InitializeSafeZoneDamage - Last Result: %.2f", Test2);
-						}
-					}
+					FN_LOG(LogHooks, Log, "PlayerPawnPhoebe: %s", PlayerPawnPhoebe->GetFullName().c_str());
+					FN_LOG(LogHooks, Log, "Controller: %s", PlayerPawnPhoebe->Controller->GetFullName().c_str());
 				}
+
+				UAthenaAIServicePlayerBots;*/
+
+				UAthenaAIServicePlayerBots* ServicePlayerBots = UAthenaAIBlueprintLibrary::GetAIServicePlayerBots(Globals::GetWorld());
+
+				FN_LOG(LogHooks, Log, "ServicePlayerBots: %s", ServicePlayerBots->GetFullName().c_str());
+
+				/*
+				HalalGS-19.10: LogHooks: Info: PlayerPawnPhoebe: BP_PlayerPawn_Athena_Phoebe_C Artemis_Terrain.Artemis_Terrain.PersistentLevel.BP_PlayerPawn_Athena_Phoebe_C_2147442657
+HalalGS-19.10: LogHooks: Info: Controller: BP_PhoebePlayerController_C Artemis_Terrain.Artemis_Terrain.PersistentLevel.BP_PhoebePlayerController_C_2147442647
+				*/
 
 				/*AFortPlayerController* PlayerController = Cast<AFortPlayerController>(UGameplayStatics::GetPlayerController(Globals::GetWorld(), 0));
 
@@ -843,6 +837,13 @@ namespace Hooks
 						Abilities::GrantModifierAbilityFromPlaylist(AbilitySystemComponent);
 
 						PlayerState->ApplyCharacterCustomization(PlayerPawn);
+
+						static int32 PlayerBotId = 1;
+
+						std::string PlayerName = "HalalBot" + std::to_string(PlayerBotId);
+						PlayerControllerAthena->ServerChangeName(std::wstring(PlayerName.begin(), PlayerName.end()).c_str());
+
+						PlayerBotId++;
 					}
 				}
 
@@ -1021,6 +1022,15 @@ namespace Hooks
 
 				if (PlaylistAthena && GameStateAthena)
 				{
+					float ServerWorldTimeSeconds = UGameplayStatics::GetTimeSeconds(GameModeAthena) + GameStateAthena->ServerWorldTimeSecondsDelta;
+					float Duration = 900.0f; // Seconds
+
+					/*GameStateAthena->WarmupCountdownStartTime = Duration;
+					GameStateAthena->WarmupCountdownEndTime = ServerWorldTimeSeconds + Duration;
+
+					GameModeAthena->WarmupEarlyCountdownDuration = ServerWorldTimeSeconds;
+					GameModeAthena->WarmupCountdownDuration = Duration;*/
+
 					for (int32 i = 0; i < PlaylistAthena->AdditionalLevels.Num(); i++)
 					{
 						TSoftObjectPtr<UWorld> AdditionalLevel = PlaylistAthena->AdditionalLevels[i];
@@ -1594,6 +1604,51 @@ namespace Hooks
 		return 30.0f;
 	}
 
+	void OnStart(UAthenaAIServicePlayerBots* AIServicePlayerBots)
+	{
+		uintptr_t Offset = uintptr_t(_ReturnAddress()) - InSDKUtils::GetImageBase();
+		uintptr_t IdaAddress = Offset + 0x7FF66E650000ULL;
+
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "Function [UAthenaAIServicePlayerBots::OnStart] successfully hooked with Offset [0x%llx], IdaAddress [%p], GameMode: [%s]", (unsigned long long)Offset, IdaAddress, AIServicePlayerBots->GetFullName().c_str());
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+		FN_LOG(LogMinHook, Log, "----------------------------------------------------------------------------------------------------------------");
+	}
+
+	AActor* (*SpawnActorOG)(UWorld* World, UClass* Class, FTransform const* Transform, const FActorSpawnParameters& SpawnParameters);
+	AActor* SpawnActor(UWorld* World, UClass* Class, FTransform const* Transform, const FActorSpawnParameters& SpawnParameters)
+	{
+		UObject* DefaultObject = Class->CreateDefaultObject();
+
+		if (DefaultObject->IsA(AAthenaAIDirector::StaticClass()))
+		{
+			/*uintptr_t Offset = uintptr_t(DefaultObject->VTable[0x20]) - InSDKUtils::GetImageBase();
+			uintptr_t IdaAddress = Offset + 0x7FF6965D0000ULL;
+
+			bool (*CanCreateInCurrentContext)() = decltype(CanCreateInCurrentContext)(DefaultObject->VTable[0x20]);
+
+			FN_LOG(LogMinHook, Log, "SpawnActor - Offset [0x%llx], IdaAddress [%p], CanCreateInCurrentContext: %i", (unsigned long long)Offset, IdaAddress, CanCreateInCurrentContext);*/
+		}
+
+		return SpawnActorOG(World, Class, Transform, SpawnParameters);
+	}
+
+
 	void InitHook()
 	{
 		uintptr_t AddressChangingGameSessionId = MinHook::FindPattern(Patterns::ChangingGameSessionId);
@@ -1623,7 +1678,11 @@ namespace Hooks
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x44A9B00), RetFalse, nullptr);
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x44A9B00));
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x4dd8528), RetTrue, nullptr);
-		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x4dd8528));
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x4dd8528)); 
+		//MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0xd708e0), RetTrue, nullptr); // NeedsLoadForClient
+		//MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0xd708e0));
+		//MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x1af4a64), RetTrue, nullptr); // NeedsLoadForServer
+		//MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x1af4a64));
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0xd6bae4), Ret, nullptr);
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0xd6bae4));
 
@@ -1633,8 +1692,14 @@ namespace Hooks
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x63c7898), Ret, nullptr); // RequestExit
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x63c7898));
 
+		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5edfc74), OnStart, nullptr);
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x5edfc74));
+
 		//MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0xf951e8), Ret, nullptr); // Showing LoadingScreen
 		//MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0xf951e8));
+
+		/*MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0xD70E2C), SpawnActor, (LPVOID*)(&SpawnActorOG));
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0xD70E2C));*/
 
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + Offsets::ProcessEvent), ProcessEvent, (LPVOID*)(&ProcessEventOG));
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + Offsets::ProcessEvent));
@@ -1666,6 +1731,9 @@ namespace Hooks
 
 		MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0xaed938), GetMaxTickRate, nullptr);
 		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0xaed938));
+
+		/*MH_CreateHook((LPVOID)(InSDKUtils::GetImageBase() + 0x1ccfbbc), EquipMountedWeapon, nullptr);
+		MH_EnableHook((LPVOID)(InSDKUtils::GetImageBase() + 0x1ccfbbc));*/
 
 		FN_LOG(LogInit, Log, "InitHook Success!");
 	}
