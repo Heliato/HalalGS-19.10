@@ -1013,19 +1013,51 @@ namespace PlayerController
 		ServerAttemptInteractOG(ControllerComponent_Interaction, ReceivingActor, InteractComponent, InteractType, OptionalObjectData, InteractionBeingAttempted, RequestID);
 
 		AFortPlayerControllerAthena* PlayerControllerAthena = Cast<AFortPlayerControllerAthena>(ControllerComponent_Interaction->GetOwner());
-		if (!PlayerControllerAthena) return;
 
-		
+		if (!PlayerControllerAthena) 
+			return;
 
-		UBlueprintGeneratedClass* GeneratedClass = StaticFindObject<UBlueprintGeneratedClass>(L"/Game/Athena/DrivableVehicles/Meatball/Meatball_Large/MeatballVehicle_L.MeatballVehicle_L_C");
-
-		if (ReceivingActor->IsA(GeneratedClass))
+		if (PlayerControllerAthena->MyFortPawn && PlayerControllerAthena->MyFortPawn->IsInVehicle())
 		{
 			UFortVehicleSeatWeaponComponent* VehicleSeatWeaponComponent = *(UFortVehicleSeatWeaponComponent**)(__int64(ReceivingActor) + 0x1930);
 
 			if (VehicleSeatWeaponComponent)
 			{
+				auto Vehicle = PlayerControllerAthena->MyFortPawn->GetVehicle();
 
+				auto SeatIdx = PlayerControllerAthena->MyFortPawn->GetVehicleSeatIndex();
+				auto WeaponComp = Vehicle->GetSeatWeaponComponent(SeatIdx);
+
+				UFortKismetLibrary::K2_GiveItemToPlayer(PlayerControllerAthena, WeaponComp->WeaponSeatDefinitions[SeatIdx].VehicleWeapon, FGuid(), 9999, false);
+
+				for (size_t i = 0; i < PlayerControllerAthena->WorldInventory->Inventory.ReplicatedEntries.Num(); i++)
+				{
+					if (PlayerControllerAthena->WorldInventory->Inventory.ReplicatedEntries[i].ItemDefinition == WeaponComp->WeaponSeatDefinitions[SeatIdx].VehicleWeapon)
+					{
+						PlayerControllerAthena->SwappingItemDefinition = PlayerControllerAthena->MyFortPawn->CurrentWeapon->WeaponData;
+						PlayerControllerAthena->ServerExecuteInventoryItem(PlayerControllerAthena->WorldInventory->Inventory.ReplicatedEntries[i].ItemGuid);
+
+						auto VehicleWeapon = Cast<AFortWeaponRangedForVehicle>(PlayerControllerAthena->MyFortPawn->CurrentWeapon);
+
+						if (!Vehicle) 
+							return;
+
+						FMountedWeaponInfo MountedWeaponInfo{};
+						MountedWeaponInfo.bTargetSourceFromVehicleMuzzle = true;
+						MountedWeaponInfo.bNeedsVehicleAttachment = true;
+
+						FMountedWeaponInfoRepped MountedWeaponInfoRepped{};
+						MountedWeaponInfoRepped.HostVehicleCachedActor = Vehicle;
+						MountedWeaponInfoRepped.HostVehicleSeatIndexCached = SeatIdx;
+
+						VehicleWeapon->MountedWeaponInfo = MountedWeaponInfo;
+						VehicleWeapon->MountedWeaponInfoRepped = MountedWeaponInfoRepped;
+
+						VehicleWeapon->OnRep_MountedWeaponInfoRepped();
+						VehicleWeapon->OnHostVehicleSetup();
+						break;
+					}
+				}
 			}
 
 			/*for (UStruct* TempStruct = ReceivingActor->Class; TempStruct; TempStruct = TempStruct->Super)
@@ -2068,7 +2100,7 @@ namespace PlayerController
 						true);
 				}
 
-				Message = L"Imabloké!";
+				Message = L"ImablokÃ©!";
 			}
 			else
 			{
